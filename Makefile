@@ -1,14 +1,20 @@
-SOURCES = main.c
-DEPS=
+SOURCES = $(wildcard *.c)
+DEPS=libtoxcore
 CC=gcc
-CFLAGS=-g
+CFLAGS=-g #-std=c99
+CFLAGS += $(shell pkg-config --cflags $(DEPS))
+LDFLAGS=-g -pthread -lm -static
+LDFLAGS += $(shell pkg-config --libs $(DEPS))
 OBJECTS=$(SOURCES:.c=.o)
+INCLUDES = $(wildcard *.h)
 
-.c.o:
+.c.o: $(INCLUDES)
 	$(CC) $(CFLAGS) $< -c -o $@
 
-tuntox: $(OBJECTS)
-	$(CC) --static -o $@ -ltoxcore $^ $(CFLAGS) /usr/local/lib/libsodium.a
+tuntox: $(OBJECTS) $(INCLUDES)
+	$(CC) -o $@ $(OBJECTS) -ltoxcore -lpthread $(LDFLAGS) /usr/local/lib/libsodium.a /usr/local/lib/libtoxcore.a
 
-all: tuntox
+cscope.out:
+	cscope -bv ./*.[ch] 
 
+all: cscope.out tuntox
