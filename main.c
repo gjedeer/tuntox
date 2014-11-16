@@ -1,8 +1,9 @@
 #include "main.h"
+#include "client.h"
 #include "tox_bootstrap.h"
 
 static Tox_Options tox_options;
-static Tox *tox;
+Tox *tox;
 int client_socket = 0;
 
 /** CONFIGURATION OPTIONS **/
@@ -10,6 +11,10 @@ int client_socket = 0;
 int client_mode = 0;
 /* Just send a ping and exit */
 int ping_mode = 0;
+/* Open a local port and forward it */
+int client_local_port_mode = 0;
+/* Forward stdin/stdout to remote machine - SSH ProxyCommand mode */
+int client_pipe_mode = 0;
 /* Remote Tox ID in client mode */
 char *remote_tox_id = NULL;
 /* Ports and hostname for port forwarding */
@@ -17,18 +22,14 @@ int remote_port = 0;
 char *remote_host = NULL;
 int local_port = 0;
 
-/* The state machine */
-int state = CLIENT_STATE_INITIAL;
-
-/* Used in ping mode */
-struct timespec ping_sent_time;
-
-/* Client mode tunnel */
-tunnel client_tunnel;
+fd_set master_server_fds;
 
 /* We keep two hash tables: one indexed by sockfd and another by "connection id" */
 tunnel *by_id = NULL;
 tunnel *by_fd = NULL;
+
+/* Highest used fd + 1 for select() */
+int select_nfds = 4;
 
 /* Generate an unique tunnel ID. To be used in a server. */
 uint16_t get_random_tunnel_id()
@@ -51,6 +52,15 @@ uint16_t get_random_tunnel_id()
     }
 }
 
+void update_select_nfds(int fd)
+{
+    /* TODO maybe replace with a scan every time to make select() more efficient in the long run? */
+    if(fd + 1 > select_nfds)
+    {
+        select_nfds = fd + 1;
+    }
+}
+
 /* Constructor. Returns NULL on failure. */
 static tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber)
 {
@@ -66,95 +76,23 @@ static tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber)
     t->connid = connid;
     t->friendnumber = friendnumber;
 
+    update_select_nfds(t->sockfd);
+
     HASH_ADD_INT( by_id, connid, t );
-    HASH_ADD_INT( by_fd, sockfd, t );
 
     return t;
 }
 
 static void tunnel_delete(tunnel *t)
 {
+    printf("Deleting tunnel #%d\n", t->connid);
+    if(t->sockfd)
+    {
+        close(t->sockfd);
+    }
     HASH_DEL( by_id, t );
-    HASH_DEL( by_fd, t );
     free(t);
 }
-
-static void writechecksum(uint8_t *address)
-{
-    uint8_t *checksum = address + 36;
-    uint32_t i;
-
-    for (i = 0; i < 36; ++i)
-	checksum[i % 2] ^= address[i];
-}
-
-/* From utox/util.c */
-static void to_hex(char_t *a, const char_t *p, int size)
-{
-    char_t b, c;
-    const char_t *end = p + size;
-
-    while(p != end) {
-        b = *p++;
-
-        c = (b & 0xF);
-        b = (b >> 4);
-
-        if(b < 10) {
-            *a++ = b + '0';
-        } else {
-            *a++ = b - 10 + 'A';
-        }
-
-        if(c < 10) {
-            *a++ = c + '0';
-        } else {
-            *a++ = c  - 10 + 'A';
-        }
-    }
-}
-
-/* From utox/util.c */
-void id_to_string(char_t *dest, const char_t *src)
-{
-    to_hex(dest, src, TOX_FRIEND_ADDRESS_SIZE);
-}
-
-/* From utox/util.c */
-int string_to_id(char_t *w, char_t *a)
-{
-    char_t *end = w + TOX_FRIEND_ADDRESS_SIZE;
-    while(w != end) {
-        char_t c, v;
-
-        c = *a++;
-        if(c >= '0' && c <= '9') {
-            v = (c - '0') << 4;
-        } else if(c >= 'A' && c <= 'F') {
-            v = (c - 'A' + 10) << 4;
-        } else if(c >= 'a' && c <= 'f') {
-            v = (c - 'a' + 10) << 4;
-        } else {
-            return 0;
-        }
-
-        c = *a++;
-        if(c >= '0' && c <= '9') {
-            v |= (c - '0');
-        } else if(c >= 'A' && c <= 'F') {
-            v |= (c - 'A' + 10);
-        } else if(c >= 'a' && c <= 'f') {
-            v |= (c - 'a' + 10);
-        } else {
-            return 0;
-        }
-
-        *w++ = v;
-    }
-
-    return 1;
-}
-
 
 /* bootstrap to dht with bootstrap_nodes */
 /* From uTox/tox.c */
@@ -304,6 +242,23 @@ int send_frame(protocol_frame *frame, uint8_t *data)
     return rv;
 }
 
+int send_tunnel_ack_frame(tunnel *tun)
+{
+    protocol_frame frame_st;
+    protocol_frame *frame;
+    char data[PROTOCOL_BUFFER_OFFSET];
+
+    frame = &frame_st;
+    memset(frame, 0, sizeof(protocol_frame));
+
+    frame->packet_type = PACKET_TYPE_ACKTUNNEL;
+    frame->connid = tun->connid;
+    frame->data_length = 0;
+    frame->friendnumber = tun->friendnumber;
+
+    return send_frame(frame, data);
+}
+
 int handle_ping_frame(protocol_frame *rcvd_frame)
 {
     uint8_t data[TOX_MAX_CUSTOM_PACKET_SIZE];
@@ -318,25 +273,6 @@ int handle_ping_frame(protocol_frame *rcvd_frame)
     frame->data_length = rcvd_frame->data_length;
     
     send_frame(frame, data);
-}
-
-int handle_pong_frame(protocol_frame *rcvd_frame)
-{
-    struct timespec pong_rcvd_time;
-    double secs1, secs2;
-
-    clock_gettime(CLOCK_MONOTONIC, &pong_rcvd_time);
-
-    secs1 = (1.0 * ping_sent_time.tv_sec) + (1e-9 * ping_sent_time.tv_nsec);
-    secs2 = (1.0 * pong_rcvd_time.tv_sec) + (1e-9 * pong_rcvd_time.tv_nsec);
-
-    printf("GOT PONG! Time = %.3fs\n", secs2-secs1);
-
-    if(ping_mode)
-    {
-//        state = CLIENT_STATE_PONG_RECEIVED;
-        state = CLIENT_STATE_SEND_PING;
-    }
 }
 
 int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
@@ -375,8 +311,10 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         tun = tunnel_create(sockfd, tunnel_id, rcvd_frame->friendnumber);
         if(tun)
         {
+            FD_SET(sockfd, &master_server_fds);
+            update_select_nfds(sockfd);
             fprintf(stderr, "Created tunnel, yay!\n");
-            /* TODO send ack */
+            send_tunnel_ack_frame(tun);
         }
         else
         {
@@ -388,7 +326,73 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         fprintf(stderr, "Could not connect to %s:%d\n", hostname, port);
         /* TODO send reject */
     }
+}
 
+/* Handle a TCP frame received from client */
+int handle_client_tcp_frame(protocol_frame *rcvd_frame)
+{
+    tunnel *tun=NULL;
+    int offset = 0;
+    int connid = rcvd_frame->connid;
+
+    HASH_FIND_INT(by_id, &connid, tun);
+
+    if(!tun)
+    {
+        fprintf(stderr, "Got TCP frame with unknown tunnel ID %d\n", rcvd_frame->connid);
+        return -1;
+    }
+
+    while(offset < rcvd_frame->data_length)
+    {
+        int sent_bytes;
+
+        sent_bytes = send(
+                tun->sockfd, 
+                rcvd_frame->data + offset,
+                rcvd_frame->data_length - offset,
+                0
+        );
+
+        if(sent_bytes < 0)
+        {
+            fprintf(stderr, "Could not write to socket %d: %s\n", tun->sockfd, strerror(errno));
+            return -1;
+        }
+
+        offset += sent_bytes;
+    }
+
+    return 0;
+}
+
+int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
+{
+
+}
+
+/* Handle close-tunnel frame received from the client */
+int handle_client_tcp_fin_frame(protocol_frame *rcvd_frame)
+{
+    tunnel *tun=NULL;
+    int offset = 0;
+    int connid = rcvd_frame->connid;
+
+    HASH_FIND_INT(by_id, &connid, tun);
+
+    if(!tun)
+    {
+        fprintf(stderr, "Got TCP FIN frame with unknown tunnel ID %d\n", rcvd_frame->connid);
+        return -1;
+    }
+
+    if(tun->friendnumber != rcvd_frame->friendnumber)
+    {
+        fprintf(stderr, "Friend #%d tried to close tunnel which belongs to #%d\n", rcvd_frame->friendnumber, tun->friendnumber);
+        return -1;
+    }
+    
+    tunnel_delete(tun);
 }
 
 /* This is a dispatcher for our encapsulated protocol */
@@ -403,9 +407,30 @@ int handle_frame(protocol_frame *frame)
             return handle_pong_frame(frame);
             break;
         case PACKET_TYPE_TCP:
+            if(client_mode)
+            {
+                return handle_server_tcp_frame(frame);
+            }
+            else
+            {
+                return handle_client_tcp_frame(frame);
+            }
             break;
         case PACKET_TYPE_REQUESTTUNNEL:
             handle_request_tunnel_frame(frame);
+            break;
+        case PACKET_TYPE_ACKTUNNEL:
+            handle_acktunnel_frame(frame);
+            break;
+        case PACKET_TYPE_TCP_FIN:
+            if(client_mode)
+            {
+                return handle_server_tcp_fin_frame(frame);
+            }
+            else
+            {
+                return handle_client_tcp_fin_frame(frame);
+            }
             break;
         default:
             fprintf(stderr, "Got unknown packet type 0x%x from friend %d\n", 
@@ -542,155 +567,67 @@ int do_server_loop()
 {
     struct timeval tv;
     fd_set fds;
-    fd_set master;
-    unsigned char read_buf[READ_BUFFER_SIZE+1];
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
+    tunnel *tun = NULL;
+    tunnel *tmp = NULL;
 
     tv.tv_sec = 0;
     tv.tv_usec = 20000;
 
-    FD_ZERO(&fds);
-//    FD_SET(client_socket, &fds);
-
-    master = fds;
+    FD_ZERO(&master_server_fds);
 
     while(1)
     {
 	/* Let tox do its stuff */
 	tox_do(tox);
+
+        fds = master_server_fds;
 
 	/* Poll for data from our client connection */
-	select(client_socket+1, &fds, NULL, NULL, &tv);
-	if(FD_ISSET(client_socket, &fds))
-	{
-	    int nbytes = recv(client_socket, read_buf, READ_BUFFER_SIZE, 0);
-
-	    /* Check if connection closed */
-	    if(nbytes == 0)
-	    {
-		printf("conn closed!\n");
-	    }
-	    else
-	    {
-		unsigned int tox_packet_length = 0;
-		read_buf[nbytes] = '\0';
-		printf("READ: %s\n", read_buf);
-	    }
-	}
-
-	fds = master;
-    }
-}
-
-int do_client_loop(char *tox_id_str)
-{
-    unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
-    unsigned char tox_id[TOX_FRIEND_ADDRESS_SIZE];
-    uint32_t friendnumber;
-
-    if(!string_to_id(tox_id, tox_id_str))
-    {
-        fprintf(stderr, "Invalid Tox ID");
-        exit(1);
-    }
-
-    fprintf(stderr, "Connecting to Tox...\n");
-
-    while(1)
-    {
-	/* Let tox do its stuff */
-	tox_do(tox);
-
-        switch(state)
+	select(select_nfds, &fds, NULL, NULL, &tv);
+        HASH_ITER(hh, by_id, tun, tmp)
         {
-            /* 
-             * Send friend request
-             */
-            case CLIENT_STATE_INITIAL:
-                if(tox_isconnected(tox))
+            if(FD_ISSET(tun->sockfd, &fds))
+            {
+                int nbytes = recv(tun->sockfd, 
+                        tox_packet_buf+PROTOCOL_BUFFER_OFFSET, 
+                        READ_BUFFER_SIZE, 0);
+
+                /* Check if connection closed */
+                if(nbytes == 0)
                 {
-                    state = CLIENT_STATE_CONNECTED;
-                }
-                break;
-            case CLIENT_STATE_CONNECTED:
-                {
-                    uint8_t data[] = "Hi, fellow tuntox instance!";
-                    uint16_t length = sizeof(data);
+                    char data[PROTOCOL_BUFFER_OFFSET];
+                    protocol_frame frame_st, *frame;
 
-                    fprintf(stderr, "Connected. Sending friend request.\n");
+                    printf("conn closed!\n");
 
-                    friendnumber = tox_add_friend(
-                            tox,
-                            tox_id,
-                            data,
-                            length
-                    );
+                    frame = &frame_st;
+                    memset(frame, 0, sizeof(protocol_frame));
+                    frame->friendnumber = tun->friendnumber;
+                    frame->packet_type = PACKET_TYPE_TCP_FIN;
+                    frame->connid = tun->connid;
+                    frame->data_length = 0;
+                    send_frame(frame, data);
 
-                    if(friendnumber < 0)
-                    {
-                        fprintf(stderr, "Error %d adding friend %s\n", friendnumber, tox_id);
-                        exit(-1);
-                    }
-
-                    tox_lossless_packet_registerhandler(tox, friendnumber, (PROTOCOL_MAGIC_V1)>>8, parse_lossless_packet, (void*)&friendnumber);
-                    state = CLIENT_STATE_SENTREQUEST;
-                    fprintf(stderr, "Waiting for friend to accept us...\n");
-                }
-                break;
-            case CLIENT_STATE_SENTREQUEST:
-                if(tox_get_friend_connection_status(tox, friendnumber) == 1)
-                {
-                    fprintf(stderr, "Friend request accepted!\n");
-                    state = CLIENT_STATE_REQUEST_ACCEPTED;
+                    tunnel_delete(tun);
+                                        
+                    /* TODO remove tunnel? resume connection? */
+                    continue;
                 }
                 else
                 {
-                }
-                break;
-            case CLIENT_STATE_REQUEST_ACCEPTED:
-                if(ping_mode)
-                {
-                    state = CLIENT_STATE_SEND_PING;
-                }
-                else
-                {
-                    state = CLIENT_STATE_REQUEST_TUNNEL;
-                }
-                break;
-            case CLIENT_STATE_SEND_PING:
-                /* Send the ping packet */
-                {
-                    uint8_t data[] = {
-                        0xa2, 0x6a, 0x01, 0x08, 0x00, 0x00, 0x00, 0x05, 
-                        0x48, 0x65, 0x6c, 0x6c, 0x6f
-                    };
+                    protocol_frame frame_st, *frame;
 
-                    clock_gettime(CLOCK_MONOTONIC, &ping_sent_time);
-                    tox_send_lossless_packet(
-                            tox,
-                            friendnumber,
-                            data,
-                            sizeof(data)
-                    );
+                    frame = &frame_st;
+                    memset(frame, 0, sizeof(protocol_frame));
+                    frame->friendnumber = tun->friendnumber;
+                    frame->packet_type = PACKET_TYPE_TCP;
+                    frame->connid = tun->connid;
+                    frame->data_length = nbytes;
+                    send_frame(frame, tox_packet_buf);
                 }
-                state = CLIENT_STATE_PING_SENT;
-                break;
-            case CLIENT_STATE_PING_SENT:
-                /* Just sit there and wait for pong */
-                break;
-            case CLIENT_STATE_REQUEST_TUNNEL:
-                send_tunnel_request_packet(
-                        "127.0.0.1",
-                        remote_port,
-                        friendnumber
-                );
-                state = CLIENT_STATE_WAIT_FOR_ACKTUNNEL;
-                break;
-            case CLIENT_STATE_WAIT_FOR_ACKTUNNEL:
-                break;
+            }
         }
-
-        usleep(tox_do_interval(tox) * 1000);
     }
 }
 
@@ -700,6 +637,7 @@ void help()
     fprintf(stderr, "USAGE:\n\n");
     fprintf(stderr, "-i <toxid> - remote point Tox ID\n");
     fprintf(stderr, "-L <localport>:<remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to 127.0.0.1:<localport>\n");
+    fprintf(stderr, "-P <remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to stdin/stdout (SSH ProxyCommand mode)\n");
     fprintf(stderr, "-p - ping the server from -i and exit\n");
 }
 
@@ -716,6 +654,18 @@ int main(int argc, char *argv[])
             case 'L':
                 /* Local port forwarding */
                 client_mode = 1;
+                client_local_port_mode = 1;
+                if(parse_local_port_forward(optarg, &local_port, &remote_host, &remote_port) < 0)
+                {
+                    fprintf(stderr, "Invalid value for -L option - use something like -L 22:127.0.0.1:22\n");
+                    exit(1);
+                }
+                fprintf(stderr, "Forwarding remote port %d to local port %d\n", remote_port, local_port);
+                break;
+            case 'P':
+                /* Pipe forwarding */
+                client_mode = 1;
+                client_pipe_mode = 1;
                 remote_port = atoi(optarg);
                 fprintf(stderr, "Forwarding remote port %d\n", remote_port);
                 break;
@@ -755,6 +705,11 @@ int main(int argc, char *argv[])
     /* TODO use proper argparse */
     if(client_mode)
     {
+        if(!remote_tox_id)
+        {
+            fprintf(stderr, "Tox id is required in client mode. Use -i 58435984ABCDEF475...\n");
+            exit(1);
+        }
         do_client_loop(remote_tox_id);
     }
     else
