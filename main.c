@@ -9,14 +9,19 @@ int client_socket = 0;
 /** CONFIGURATION OPTIONS **/
 /* Whether we're a client */
 int client_mode = 0;
+
 /* Just send a ping and exit */
 int ping_mode = 0;
+
 /* Open a local port and forward it */
 int client_local_port_mode = 0;
+
 /* Forward stdin/stdout to remote machine - SSH ProxyCommand mode */
 int client_pipe_mode = 0;
+
 /* Remote Tox ID in client mode */
 char *remote_tox_id = NULL;
+
 /* Ports and hostname for port forwarding */
 int remote_port = 0;
 char *remote_host = NULL;
@@ -26,7 +31,6 @@ fd_set master_server_fds;
 
 /* We keep two hash tables: one indexed by sockfd and another by "connection id" */
 tunnel *by_id = NULL;
-tunnel *by_fd = NULL;
 
 /* Highest used fd + 1 for select() */
 int select_nfds = 4;
@@ -62,7 +66,7 @@ void update_select_nfds(int fd)
 }
 
 /* Constructor. Returns NULL on failure. */
-static tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber)
+tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber)
 {
     tunnel *t = NULL;
 
@@ -76,6 +80,8 @@ static tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber)
     t->connid = connid;
     t->friendnumber = friendnumber;
 
+    fprintf(stderr, "Created a new tunnel object connid=%d sockfd=%d\n", connid, sockfd);
+
     update_select_nfds(t->sockfd);
 
     HASH_ADD_INT( by_id, connid, t );
@@ -83,7 +89,7 @@ static tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber)
     return t;
 }
 
-static void tunnel_delete(tunnel *t)
+void tunnel_delete(tunnel *t)
 {
     printf("Deleting tunnel #%d\n", t->connid);
     if(t->sockfd)
@@ -167,7 +173,7 @@ int get_client_socket(char *hostname, int port)
     snprintf(port_str, 6, "%d", port);
 
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
+    hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
     if ((rv = getaddrinfo(hostname, port_str, &hints, &servinfo)) != 0) {
@@ -177,6 +183,9 @@ int get_client_socket(char *hostname, int port)
 
     // loop through all the results and connect to the first we can
     for(p = servinfo; p != NULL; p = p->ai_next) {
+        if (p->ai_family != AF_INET && p->ai_family != AF_INET6)
+                    continue;
+
         if ((sockfd = socket(p->ai_family, p->ai_socktype,
                 p->ai_protocol)) == -1) {
             perror("client: socket");
@@ -216,7 +225,8 @@ int get_client_socket(char *hostname, int port)
  */
 int send_frame(protocol_frame *frame, uint8_t *data)
 {
-    int rv;
+    int rv = -1;
+    int i;
 
     data[0] = PROTOCOL_MAGIC_HIGH;
     data[1] = PROTOCOL_MAGIC_LOW;
@@ -227,16 +237,40 @@ int send_frame(protocol_frame *frame, uint8_t *data)
     data[6] = BYTE2(frame->data_length);
     data[7] = BYTE1(frame->data_length);
 
-    rv = tox_send_lossless_packet(
-            tox,
-            frame->friendnumber,
-            data,
-            frame->data_length + PROTOCOL_BUFFER_OFFSET
-    );
-
-    if(rv < 0)
+    for(i = 0; i < 17;)
     {
-        fprintf(stderr, "Failed to send packet to friend %d\n", frame->friendnumber);
+        int j;
+
+        rv = tox_send_lossless_packet(
+                tox,
+                frame->friendnumber,
+                data,
+                frame->data_length + PROTOCOL_BUFFER_OFFSET
+        );
+
+        if(rv < 0)
+        {
+            /* If this branch is ran, most likely we've hit congestion control. */
+            fprintf(stderr, "[%d] Failed to send packet to friend %d\n", i, frame->friendnumber);
+        }
+        else
+        {
+            break;
+        }
+
+        if(i == 0) i = 2;
+        else i = i * 2;
+
+        for(j = 0; j < i; j++)
+        {
+            tox_do(tox);
+            usleep(j * 10000);
+        }
+    }
+
+    if(i > 0 && rv >= 0)
+    {
+        fprintf(stderr, "Packet succeeded at try %d", i+1);
     }
 
     return rv;
@@ -570,6 +604,7 @@ int do_server_loop()
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     tunnel *tun = NULL;
     tunnel *tmp = NULL;
+    int connected = 0;
 
     tv.tv_sec = 0;
     tv.tv_usec = 20000;
@@ -578,8 +613,25 @@ int do_server_loop()
 
     while(1)
     {
+        int tmp_isconnected = 0;
+
 	/* Let tox do its stuff */
 	tox_do(tox);
+
+        /* Check change in connection state */
+        tmp_isconnected = tox_isconnected(tox);
+        if(tmp_isconnected != connected)
+        {
+            connected = tmp_isconnected;
+            if(connected)
+            {
+                fprintf(stderr, "Connected to Tox network\n");
+            }
+            else
+            {
+                fprintf(stderr, "Disconnected from Tox network\n");
+            }
+        }
 
         fds = master_server_fds;
 

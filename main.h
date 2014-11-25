@@ -3,8 +3,10 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,7 +20,6 @@
 #include "util.h"
 #include "uthash.h"
 
-#define READ_BUFFER_SIZE 1024
 
 #define PROTOCOL_MAGIC_V1 0xa26a
 #define PROTOCOL_MAGIC PROTOCOL_MAGIC_V1
@@ -37,7 +38,9 @@
 
 /* Offset of the data buffer in the packet */
 #define PROTOCOL_BUFFER_OFFSET 8
+#define READ_BUFFER_SIZE TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET
 #define PROTOCOL_MAX_PACKET_SIZE (READ_BUFFER_SIZE + PROTOCOL_BUFFER_OFFSET)
+
 
 typedef struct tunnel_t {
 	/* The forwarded socket fd */
@@ -80,6 +83,9 @@ extern char *remote_host;
 extern int local_port;
 
 extern int select_nfds;
+extern tunnel *by_id;
 
 int parse_lossless_packet(void *sender_uc, const uint8_t *data, uint32_t len);
+tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber);
+void tunnel_delete(tunnel *t);
 #endif

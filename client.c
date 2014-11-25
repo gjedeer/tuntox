@@ -10,6 +10,9 @@ struct timespec ping_sent_time;
 /* Client mode tunnel */
 tunnel client_tunnel;
 
+/* Sock representing the local port - call accept() on it */
+int bind_sockfd;
+
 fd_set client_master_fdset;
 
 int handle_pong_frame(protocol_frame *rcvd_frame)
@@ -31,17 +34,12 @@ int handle_pong_frame(protocol_frame *rcvd_frame)
     }
 }
 
-int local_bind(tunnel *tun)
+int local_bind()
 {
     struct addrinfo hints, *res;
-    int sockfd;
     char port[6];
     int yes = 1;
-
-    /* accept() variables - TODO they should not be there */
-    int newfd;
-    struct sockaddr_storage remoteaddr; // client address
-    socklen_t addrlen;
+    int flags;
 
     snprintf(port, 6, "%d", local_port);
 
@@ -52,69 +50,66 @@ int local_bind(tunnel *tun)
 
     getaddrinfo(NULL, port, &hints, &res);
 
-    sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if(sockfd < 0)
+    bind_sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if(bind_sockfd < 0)
     {
-        fprintf(stderr, "Could not create a socket for local listening\n");
+        fprintf(stderr, "Could not create a socket for local listening: %s\n", strerror(errno));
         exit(1);
     }
 
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+    setsockopt(bind_sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
 
-    if(bind(sockfd, res->ai_addr, res->ai_addrlen) < 0)
+    /* Set O_NONBLOCK to make accept() non-blocking */
+    if (-1 == (flags = fcntl(bind_sockfd, F_GETFL, 0)))
     {
-        fprintf(stderr, "Bind to port %d failed: %s", local_port, strerror(errno));
-        close(sockfd);
+        flags = 0;
+    }
+    fcntl(bind_sockfd, F_SETFL, flags | O_NONBLOCK);
+
+    if(bind(bind_sockfd, res->ai_addr, res->ai_addrlen) < 0)
+    {
+        fprintf(stderr, "Bind to port %d failed: %s\n", local_port, strerror(errno));
+        close(bind_sockfd);
         exit(1);
     }
 
-    if(listen(sockfd, 1) < 0)
+    if(listen(bind_sockfd, 1) < 0)
     {
-        fprintf(stderr, "Listening on port %d failed: %s", local_port, strerror(errno));
-        close(sockfd);
+        fprintf(stderr, "Listening on port %d failed: %s\n", local_port, strerror(errno));
+        close(bind_sockfd);
         exit(1);
     }
 
-    // TODO return sockfd
-
-    /* TODO: make a proper accept loop and track tunnels, to handle more than 1 connection */
-    addrlen = sizeof(remoteaddr);
-    newfd = accept(sockfd, 
-            (struct sockaddr *)&remoteaddr,
-            &addrlen);
-
-    if(newfd < 0)
-    {
-        fprintf(stderr, "Error when accepting a local connection: %s\n", strerror(errno));
-        close(sockfd);
-        exit(0);
-    }
-
-//    TODO close(sockfd);
-
-    return newfd;
+    fprintf(stderr, "Bound to local port %d\n", local_port);
 }
 
+/* Bind the client.sockfd to a tunnel */
 int handle_acktunnel_frame(protocol_frame *rcvd_frame)
 {
+    tunnel *tun;
+
     if(!client_mode)
     {
         fprintf(stderr, "Got ACK tunnel frame when not in client mode!?\n");
         return -1;
     }
 
-    client_tunnel.connid = rcvd_frame->connid;
-    client_tunnel.friendnumber = rcvd_frame->friendnumber;
-    // TODO open local port and fill client_tunnel.sockfd
-    printf("New tunnel ID: %d\n", client_tunnel.connid);
+    tun = tunnel_create(
+            client_tunnel.sockfd,
+            rcvd_frame->connid,
+            rcvd_frame->friendnumber
+    );
+
+    /* Mark that we can accept() another connection */
+    client_tunnel.sockfd = -1;
+
+    printf("New tunnel ID: %d\n", tun->connid);
 
     if(client_local_port_mode)
     {
-        client_tunnel.sockfd = local_bind(&client_tunnel);
-        update_select_nfds(client_tunnel.sockfd);
-        FD_SET(client_tunnel.sockfd, &client_master_fdset);
-        fprintf(stderr, "Accepting connections on port %d\n", local_port);
-        state = CLIENT_STATE_FORWARDING;
+        update_select_nfds(tun->sockfd);
+        FD_SET(tun->sockfd, &client_master_fdset);
+        fprintf(stderr, "Accepted a new connection on port %d\n", local_port);
     }
     else
     {
@@ -126,9 +121,17 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
 /* Handle a TCP frame received from server */
 int handle_server_tcp_frame(protocol_frame *rcvd_frame)
 {
-    /* TODO find tunnel basing on ID */
     int offset = 0;
-    tunnel *tun = &client_tunnel;
+    tunnel *tun = NULL;
+    int tun_id = rcvd_frame->connid;
+
+    HASH_FIND_INT(by_id, &tun_id, tun);
+
+    if(!tun)
+    {
+        fprintf(stderr, "Got TCP frame with unknown tunnel ID %d\n", rcvd_frame->connid);
+        return -1;
+    }
 
     while(offset < rcvd_frame->data_length)
     {
@@ -143,13 +146,27 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
 
         if(sent_bytes < 0)
         {
+            char data[PROTOCOL_BUFFER_OFFSET];
+            protocol_frame frame_st, *frame;
+
             fprintf(stderr, "Could not write to socket %d: %s\n", tun->sockfd, strerror(errno));
+
+            frame = &frame_st;
+            memset(frame, 0, sizeof(protocol_frame));
+            frame->friendnumber = tun->friendnumber;
+            frame->packet_type = PACKET_TYPE_TCP_FIN;
+            frame->connid = tun->connid;
+            frame->data_length = 0;
+            send_frame(frame, data);
+            tunnel_delete(tun);
+
             return -1;
         }
 
         offset += sent_bytes;
     }
 
+    printf("Got %d bytes from server - wrote to fd %d\n", rcvd_frame->data_length, tun->sockfd);
 
     return 0;
 }
@@ -170,6 +187,12 @@ int do_client_loop(char *tox_id_str)
     {
         fprintf(stderr, "Invalid Tox ID");
         exit(1);
+    }
+
+    if(!ping_mode) /* TODO handle pipe mode */
+    {
+        local_bind();
+        signal(SIGPIPE, SIG_IGN);
     }
 
     fprintf(stderr, "Connecting to Tox...\n");
@@ -232,7 +255,7 @@ int do_client_loop(char *tox_id_str)
                 }
                 else
                 {
-                    state = CLIENT_STATE_REQUEST_TUNNEL;
+                    state = CLIENT_STATE_BIND_PORT;
                 }
                 break;
             case CLIENT_STATE_SEND_PING:
@@ -256,9 +279,21 @@ int do_client_loop(char *tox_id_str)
             case CLIENT_STATE_PING_SENT:
                 /* Just sit there and wait for pong */
                 break;
+
+            case CLIENT_STATE_BIND_PORT:
+                if(bind_sockfd < 0)
+                {
+                    fprintf(stderr, "Shutting down - could not bind to listening port\n");
+                    state = CLIENT_STATE_SHUTDOWN;
+                }
+                else
+                {
+                    state = CLIENT_STATE_FORWARDING;
+                }
+                break;
             case CLIENT_STATE_REQUEST_TUNNEL:
                 send_tunnel_request_packet(
-                        "127.0.0.1",
+                        remote_host,
                         remote_port,
                         friendnumber
                 );
@@ -268,49 +303,73 @@ int do_client_loop(char *tox_id_str)
                 break;
             case CLIENT_STATE_FORWARDING:
                 {
+                    int accept_fd = 0;
+                    tunnel *tmp = NULL;
+                    tunnel *tun = NULL;
+
                     tv.tv_sec = 0;
                     tv.tv_usec = 20000;
                     fds = client_master_fdset;
-
-                    select(select_nfds, &fds, NULL, NULL, &tv);
                     
-                    if(FD_ISSET(client_tunnel.sockfd, &fds))
+                    /* Handle accepting new connections */
+                    if(client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
                     {
-                        int nbytes = recv(client_tunnel.sockfd, 
-                                tox_packet_buf + PROTOCOL_BUFFER_OFFSET, 
-                                READ_BUFFER_SIZE, 0);
-
-                        /* Check if connection closed */
-                        if(nbytes == 0)
+                        accept_fd = accept(bind_sockfd, NULL, NULL);
+                        if(accept_fd != -1)
                         {
-                            char data[PROTOCOL_BUFFER_OFFSET];
-                            protocol_frame frame_st, *frame;
+                            fprintf(stderr, "Accepting a new connection - requesting tunnel...\n");
 
-                            fprintf(stderr, "Connection closed\n");
-
-                            frame = &frame_st;
-                            memset(frame, 0, sizeof(protocol_frame));
-                            frame->friendnumber = client_tunnel.friendnumber;
-                            frame->packet_type = PACKET_TYPE_TCP_FIN;
-                            frame->connid = client_tunnel.connid;
-                            frame->data_length = 0;
-                            send_frame(frame, data);
-
-                            state = CLIENT_STATE_SHUTDOWN;
-
-//                            exit(1); // TODO handle it in a smarter way (accept() again?)
+                            /* Open a new tunnel for this FD */
+                            client_tunnel.sockfd = accept_fd;
+                            send_tunnel_request_packet(
+                                    remote_host,
+                                    remote_port,
+                                    friendnumber
+                            );
                         }
-                        else
-                        {
-                            protocol_frame frame_st, *frame;
+                    }
 
-                            frame = &frame_st;
-                            memset(frame, 0, sizeof(protocol_frame));
-                            frame->friendnumber = client_tunnel.friendnumber;
-                            frame->packet_type = PACKET_TYPE_TCP;
-                            frame->connid = client_tunnel.connid;
-                            frame->data_length = nbytes;
-                            send_frame(frame, tox_packet_buf);
+                    /* Handle reading from sockets */
+                    select(select_nfds, &fds, NULL, NULL, &tv);
+                    HASH_ITER(hh, by_id, tun, tmp)
+                    {
+                        if(FD_ISSET(tun->sockfd, &fds))
+                        {
+                            int nbytes = recv(tun->sockfd, 
+                                    tox_packet_buf + PROTOCOL_BUFFER_OFFSET, 
+                                    READ_BUFFER_SIZE, 0);
+
+                            /* Check if connection closed */
+                            if(nbytes == 0)
+                            {
+                                char data[PROTOCOL_BUFFER_OFFSET];
+                                protocol_frame frame_st, *frame;
+
+                                fprintf(stderr, "Connection closed\n");
+
+                                frame = &frame_st;
+                                memset(frame, 0, sizeof(protocol_frame));
+                                frame->friendnumber = tun->friendnumber;
+                                frame->packet_type = PACKET_TYPE_TCP_FIN;
+                                frame->connid = tun->connid;
+                                frame->data_length = 0;
+                                send_frame(frame, data);
+                                tunnel_delete(tun);
+                            }
+                            else
+                            {
+                                protocol_frame frame_st, *frame;
+
+                                frame = &frame_st;
+                                memset(frame, 0, sizeof(protocol_frame));
+                                frame->friendnumber = tun->friendnumber;
+                                frame->packet_type = PACKET_TYPE_TCP;
+                                frame->connid = tun->connid;
+                                frame->data_length = nbytes;
+                                send_frame(frame, tox_packet_buf);
+
+                                printf("Wrote %d bytes from sock %d to tunnel %d\n", nbytes, tun->sockfd, tun->connid);
+                            }
                         }
                     }
 
