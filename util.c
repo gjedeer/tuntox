@@ -1,6 +1,7 @@
 #include "util.h"
 #include <string.h>
 #include <tox/tox.h>
+#include <stdio.h>
 
 void writechecksum(uint8_t *address)
 {
@@ -99,4 +100,43 @@ int parse_local_port_forward(char *string, int *local_port, char **hostname, int
     *remote_port = atoi(rport);
 
     return 0;
+}
+
+void* file_raw(char *path, uint32_t *size)
+{
+    FILE *file;
+    char *data;
+    int len;
+
+    file = fopen(path, "rb");
+    if(!file) {
+        fprintf(stderr, "File not found (%s)\n", path);
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    len = ftell(file);
+    data = malloc(len);
+    if(!data) {
+        fclose(file);
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_SET);
+
+    if(fread(data, len, 1, file) != 1) {
+        fprintf(stderr, "Read error (%s)\n", path);
+        fclose(file);
+        free(data);
+        return NULL;
+    }
+
+    fclose(file);
+
+    fprintf(stderr, "Read %u bytes (%s)\n", len, path);
+
+    if(size) {
+        *size = len;
+    }
+    return data;
 }

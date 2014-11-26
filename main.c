@@ -22,6 +22,9 @@ int client_pipe_mode = 0;
 /* Remote Tox ID in client mode */
 char *remote_tox_id = NULL;
 
+/* Directory with config and tox save */
+char config_path[500] = "/etc/tuntox/";
+
 /* Ports and hostname for port forwarding */
 int remote_port = 0;
 char *remote_host = NULL;
@@ -203,7 +206,7 @@ int get_client_socket(char *hostname, int port)
 
     if (p == NULL) {
         fprintf(stderr, "failed to connect to %s:%d\n", hostname, port);
-        exit(1);
+        return -1;
     }
 
     inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
@@ -270,7 +273,7 @@ int send_frame(protocol_frame *frame, uint8_t *data)
 
     if(i > 0 && rv >= 0)
     {
-        fprintf(stderr, "Packet succeeded at try %d", i+1);
+        fprintf(stderr, "Packet succeeded at try %d\n", i+1);
     }
 
     return rv;
@@ -559,6 +562,82 @@ int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_nu
 
 /* End proto */
 
+/* Save tox identity to a file */
+static void write_save(Tox *tox)
+{
+    void *data;
+    uint32_t size;
+    uint8_t path_tmp[512], path_real[512], *p;
+    FILE *file;
+
+    size = tox_size(tox);
+    data = malloc(size);
+    tox_save(tox, data);
+
+    strncpy(path_real, config_path, sizeof(config_path));
+
+    p = path_real + strlen(path_real);
+    memcpy(p, "tox_save", sizeof("tox_save"));
+
+    unsigned int path_len = (p - path_real) + sizeof("tox_save");
+    memcpy(path_tmp, path_real, path_len);
+    memcpy(path_tmp + (path_len - 1), ".tmp", sizeof(".tmp"));
+
+    file = fopen((char*)path_tmp, "wb");
+    if(file) {
+        fwrite(data, size, 1, file);
+        fflush(file);
+        fclose(file);
+        if (rename((char*)path_tmp, (char*)path_real) != 0) {
+            fprintf(stderr, "Failed to rename file. %s to %s deleting and trying again\n", path_tmp, path_real);
+            remove((const char *)path_real);
+            if (rename((char*)path_tmp, (char*)path_real) != 0) {
+                fprintf(stderr, "Saving Failed\n");
+            } else {
+                fprintf(stderr, "Saved data\n");
+            }
+        } else {
+            fprintf(stderr, "Saved data\n");
+        }
+    }
+    else
+    {
+        fprintf(stderr, "Could not open save file\n");
+    }
+
+    free(data);
+}
+
+/* Load tox identity from a file */
+static int load_save(Tox *tox)
+{
+    void *data;
+    uint32_t size;
+    uint8_t path_tmp[512], path_real[512], *p;
+    FILE *file;
+
+    strncpy(path_real, config_path, sizeof(config_path));
+
+    p = path_real + strlen(path_real);
+    memcpy(p, "tox_save", sizeof("tox_save"));
+
+    unsigned int path_len = (p - path_real) + sizeof("tox_save");
+
+    data = file_raw((char *)path_real, &size);
+
+    if(data)
+    {
+        tox_load(tox, data, size);
+        free(data);
+        return 1;
+    }
+    else
+    {
+        fprintf(stderr, "Could not open save file\n");
+        return 0;
+    }
+}
+
 void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *data, uint16_t length, void *userdata)
 {
     unsigned char tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2 + 1];
@@ -699,7 +778,7 @@ int main(int argc, char *argv[])
     unsigned char tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2 + 1];
     int oc;
 
-    while ((oc = getopt(argc, argv, "L:pi:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:")) != -1)
     {
         switch(oc)
         {
@@ -727,7 +806,19 @@ int main(int argc, char *argv[])
                 ping_mode = 1;
                 break;
             case 'i':
+                /* Tox ID */
                 remote_tox_id = optarg;
+                break;
+            case 'C':
+                /* Config directory */
+                strncpy(config_path, optarg, sizeof(config_path) - 1);
+                if(optarg[strlen(optarg) - 1] != '/')
+                {
+                    int optarg_len = strlen(optarg);
+                    
+                    config_path[optarg_len] = '/';
+                    config_path[optarg_len + 1] = '\0';
+                }
                 break;
             case '?':
             default:
@@ -747,16 +838,16 @@ int main(int argc, char *argv[])
 
     set_tox_username(tox);
 
-    tox_get_address(tox, tox_id);
-    id_to_string(tox_printable_id, tox_id);
-    tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2] = '\0';
-    printf("Generated Tox ID: %s\n", tox_printable_id);
-
     do_bootstrap(tox);
 
     /* TODO use proper argparse */
     if(client_mode)
     {
+        tox_get_address(tox, tox_id);
+        id_to_string(tox_printable_id, tox_id);
+        tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2] = '\0';
+        printf("Generated Tox ID: %s\n", tox_printable_id);
+
         if(!remote_tox_id)
         {
             fprintf(stderr, "Tox id is required in client mode. Use -i 58435984ABCDEF475...\n");
@@ -768,6 +859,16 @@ int main(int argc, char *argv[])
     {
         /* Connect to the forwarded service */
 //        client_socket = get_client_socket();
+        if(!load_save(tox))
+        {
+            /* Write generated ID if one is not already present */
+            write_save(tox);
+        }
+
+        tox_get_address(tox, tox_id);
+        id_to_string(tox_printable_id, tox_id);
+        tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2] = '\0';
+        printf("Using Tox ID: %s\n", tox_printable_id);
 
         tox_callback_friend_request(tox, accept_friend_request, NULL);
         do_server_loop();
