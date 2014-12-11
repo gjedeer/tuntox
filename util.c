@@ -43,7 +43,7 @@ void to_hex(char_t *a, const char_t *p, int size)
 /* From utox/util.c */
 void id_to_string(char_t *dest, const char_t *src)
 {
-    to_hex(dest, src, TOX_FRIEND_ADDRESS_SIZE - 1);
+    to_hex(dest, src, TOX_FRIEND_ADDRESS_SIZE);
 }
 
 /* From utox/util.c */

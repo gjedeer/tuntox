@@ -643,6 +643,7 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *d
 
     friendnumber = tox_add_friend_norequest(tox, public_key);
 
+    memset(tox_printable_id, '\0', sizeof(tox_printable_id));
     id_to_string(tox_printable_id, public_key);
     printf("Accepted friend request from %s as %d\n", tox_printable_id, friendnumber);
 
