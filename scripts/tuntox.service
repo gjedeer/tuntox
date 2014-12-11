@@ -1,0 +1,20 @@
+[Unit]
+Description=Tuntox - TCP tunnel over Tox protocol
+After=network.target
+
+[Service]
+Type=simple
+
+# Copy the tuntox binary to /usr/bin first
+
+ExecStart=/usr/bin/tuntox
+Restart=on-failure
+
+# Change this to your user and group for increased security
+# Make sure this user/group has access to /etc/tuntox
+#User=proxy
+#Group=proxy
+
+[Install]
+WantedBy=multi-user.target
+Alias=tuntox.service
