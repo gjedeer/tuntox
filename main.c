@@ -374,6 +374,12 @@ int handle_client_tcp_frame(protocol_frame *rcvd_frame)
         return -1;
     }
 
+    if(tun->friendnumber != rcvd_frame->friendnumber)
+    {
+        fprintf(stderr, "Friend #%d tried to send packet to a tunnel which belongs to #%d\n", rcvd_frame->friendnumber, tun->friendnumber);
+        return -1;
+    }
+
     while(offset < rcvd_frame->data_length)
     {
         int sent_bytes;
@@ -395,11 +401,6 @@ int handle_client_tcp_frame(protocol_frame *rcvd_frame)
     }
 
     return 0;
-}
-
-int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
-{
-
 }
 
 /* Handle close-tunnel frame received from the client */
@@ -506,7 +507,7 @@ int parse_lossless_packet(void *sender_uc, const uint8_t *data, uint32_t len)
     frame->packet_type =                INT16_AT(data, 2);
     frame->connid =                     INT16_AT(data, 4);
     frame->data_length =                INT16_AT(data, 6);
-    frame->data = data + PROTOCOL_BUFFER_OFFSET;
+    frame->data = (uint8_t *)(data + PROTOCOL_BUFFER_OFFSET);
     frame->friendnumber = *((uint32_t*)sender_uc);
     printf("Got protocol frame magic 0x%x type 0x%x from friend %d\n", frame->magic, frame->packet_type, frame->friendnumber);
 
@@ -861,6 +862,7 @@ int main(int argc, char *argv[])
         }
 
         tox_get_address(tox, tox_id);
+        memset(tox_printable_id, '\0', sizeof(tox_printable_id));
         id_to_string(tox_printable_id, tox_id);
         tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2] = '\0';
         printf("Using Tox ID: %s\n", tox_printable_id);

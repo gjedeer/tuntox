@@ -16,4 +16,5 @@
 int handle_pong_frame(protocol_frame *rcvd_frame);
 int handle_acktunnel_frame(protocol_frame *rcvd_frame);
 int handle_server_tcp_frame(protocol_frame *rcvd_frame);
+int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame);
 int do_client_loop(char *tox_id_str);

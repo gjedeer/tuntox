@@ -171,6 +171,30 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
     return 0;
 }
 
+/* Handle close-tunnel frame recived from the server */
+int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
+{
+    tunnel *tun=NULL;
+    int offset = 0;
+    int connid = rcvd_frame->connid;
+
+    HASH_FIND_INT(by_id, &connid, tun);
+
+    if(!tun)
+    {
+        fprintf(stderr, "Got TCP FIN frame with unknown tunnel ID %d\n", rcvd_frame->connid);
+        return -1;
+    }
+
+    if(tun->friendnumber != rcvd_frame->friendnumber)
+    {
+        fprintf(stderr, "Friend #%d tried to close tunnel while server is #%d\n", rcvd_frame->friendnumber, tun->friendnumber);
+        return -1;
+    }
+    
+    tunnel_delete(tun);
+}
+
 /* Main loop for the client */
 int do_client_loop(char *tox_id_str)
 {
