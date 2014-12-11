@@ -4,7 +4,7 @@ Tuntox is a program which forwards TCP connections over the [Tox](https://tox.im
 
 Tuntox is a single binary which may run in client mode or server mode. As a rule of thumb, run the server on the remote machine you want to access and the client on your local computer from which you want to access the server.
 
-**Tuntox is an early work in progress program**. It won't kill your goats but it may segfault, leak memory or have security issues (although I tried to make it rather secure). It won't be as fast as it could be because of the tremendous amount of debug output.
+**Tuntox is in early work in progress stage**. It won't kill your goats but it may segfault, leak memory or have security issues (although I tried to make it rather secure). It won't be as fast as it could be because of the tremendous amount of debug output.
 
 If you don't know what Tox is - it's an instant messenger protocol which is fully P2P, supports audio/video calls and file transfers. Unlike Skype it's fully open and unlike, say, XMPP - the calls and file transfers actually work. Go download a client from http://utox.org/ or read more at https://tox.im/
 
@@ -64,4 +64,6 @@ Tuntox is piggybacking on the Tox protocol, which itself has not been audited by
 
 Sorry about GPLv3 - both toxcore and utox (from which I borrowed some code) are GPLv3.
 
-Thank you to the toxcore and utox developers without whom this program would never exist. Thank you Mr_4551 for your help and motivation.
+Thank you to the toxcore and utox developers without whom this program would never exist. [Donate to Tox](https://donate.tox.im/) so they can get a proper audit.
+
+Thank you Mr_4551 for your help and motivation.
