@@ -2,6 +2,7 @@
 #include <string.h>
 #include <tox/tox.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 void writechecksum(uint8_t *address)
 {
@@ -36,12 +37,13 @@ void to_hex(char_t *a, const char_t *p, int size)
             *a++ = c  - 10 + 'A';
         }
     }
+    a = '\0';
 }
 
 /* From utox/util.c */
 void id_to_string(char_t *dest, const char_t *src)
 {
-    to_hex(dest, src, TOX_FRIEND_ADDRESS_SIZE);
+    to_hex(dest, src, TOX_FRIEND_ADDRESS_SIZE - 1);
 }
 
 /* From utox/util.c */
