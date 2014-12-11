@@ -59,3 +59,9 @@ Therefore, posession of the server's Tox ID should be considered equivalent to p
 Currently there are no measures for preventing brute force attacks against the 32-bit antispam value that the author is aware of. They may or may not be released by the libtoxcore team and are not in the scope of this tool.
 
 Tuntox is piggybacking on the Tox protocol, which itself has not been audited by security researchers. Tox crypto has been implemented with libsodium (which is based on Bernstein's NaCl) and thus uses the ecliptic curve 25519 for key exchange and salsa20 for stream encryption. According to the author's best knowledge, libsodium makes it as hard as possible to get crypto wrong, but we don't know until Tox has been audited.
+
+## License
+
+Sorry about GPLv3 - both toxcore and utox (from which I borrowed some code) are GPLv3.
+
+Thank you to the toxcore and utox developers without whom this program would never exist. Thank you Mr_4551 for your help and motivation.
