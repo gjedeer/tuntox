@@ -103,17 +103,20 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
     /* Mark that we can accept() another connection */
     client_tunnel.sockfd = -1;
 
-    printf("New tunnel ID: %d\n", tun->connid);
+//    printf("New tunnel ID: %d\n", tun->connid);
 
-    if(client_local_port_mode)
+    if(client_local_port_mode || client_pipe_mode)
     {
         update_select_nfds(tun->sockfd);
         FD_SET(tun->sockfd, &client_master_fdset);
-        fprintf(stderr, "Accepted a new connection on port %d\n", local_port);
+        if(client_local_port_mode)
+        {
+            fprintf(stderr, "Accepted a new connection on port %d\n", local_port);
+        }
     }
     else
     {
-        fprintf(stderr, "This tunnel mode is not supported yet");
+        fprintf(stderr, "This tunnel mode is not supported yet\n");
         exit(1);
     }
 }
@@ -136,20 +139,33 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
     while(offset < rcvd_frame->data_length)
     {
         int sent_bytes;
+        int write_sockfd;
 
-        sent_bytes = send(
-                tun->sockfd, 
-                rcvd_frame->data + offset,
-                rcvd_frame->data_length - offset,
-                MSG_NOSIGNAL
-        );
+        if(client_pipe_mode)
+        {
+            sent_bytes = write(
+                    1, /* STDOUT */
+                    rcvd_frame->data + offset,
+                    rcvd_frame->data_length - offset
+            );
+        }
+        else
+        {
+            sent_bytes = send(
+                    tun->sockfd, 
+                    rcvd_frame->data + offset,
+                    rcvd_frame->data_length - offset,
+                    MSG_NOSIGNAL
+            );
+        }
+
 
         if(sent_bytes < 0)
         {
             char data[PROTOCOL_BUFFER_OFFSET];
             protocol_frame frame_st, *frame;
 
-            fprintf(stderr, "Could not write to socket %d: %s\n", tun->sockfd, strerror(errno));
+            fprintf(stderr, "Could not write to socket %d: %s\n", write_sockfd, strerror(errno));
 
             frame = &frame_st;
             memset(frame, 0, sizeof(protocol_frame));
@@ -166,7 +182,7 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
         offset += sent_bytes;
     }
 
-    printf("Got %d bytes from server - wrote to fd %d\n", rcvd_frame->data_length, tun->sockfd);
+//    printf("Got %d bytes from server - wrote to fd %d\n", rcvd_frame->data_length, tun->sockfd);
 
     return 0;
 }
@@ -213,7 +229,7 @@ int do_client_loop(char *tox_id_str)
         exit(1);
     }
 
-    if(!ping_mode) /* TODO handle pipe mode */
+    if(!ping_mode && !client_pipe_mode)
     {
         local_bind();
         signal(SIGPIPE, SIG_IGN);
@@ -277,6 +293,10 @@ int do_client_loop(char *tox_id_str)
                 {
                     state = CLIENT_STATE_SEND_PING;
                 }
+                else if(client_pipe_mode)
+                {
+                    state = CLIENT_STATE_SETUP_PIPE;
+                }
                 else
                 {
                     state = CLIENT_STATE_BIND_PORT;
@@ -315,6 +335,14 @@ int do_client_loop(char *tox_id_str)
                     state = CLIENT_STATE_FORWARDING;
                 }
                 break;
+            case CLIENT_STATE_SETUP_PIPE:
+                send_tunnel_request_packet(
+                        remote_host,
+                        remote_port,
+                        friendnumber
+                );
+                state = CLIENT_STATE_FORWARDING;
+                break;
             case CLIENT_STATE_REQUEST_TUNNEL:
                 send_tunnel_request_packet(
                         remote_host,
@@ -324,6 +352,12 @@ int do_client_loop(char *tox_id_str)
                 state = CLIENT_STATE_WAIT_FOR_ACKTUNNEL;
                 break;
             case CLIENT_STATE_WAIT_FOR_ACKTUNNEL:
+                client_tunnel.sockfd = 0;
+                send_tunnel_request_packet(
+                        remote_host,
+                        remote_port,
+                        friendnumber
+                );
                 break;
             case CLIENT_STATE_FORWARDING:
                 {
@@ -336,7 +370,8 @@ int do_client_loop(char *tox_id_str)
                     fds = client_master_fdset;
                     
                     /* Handle accepting new connections */
-                    if(client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
+                    if(!client_pipe_mode &&
+                        client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
                     {
                         accept_fd = accept(bind_sockfd, NULL, NULL);
                         if(accept_fd != -1)
@@ -359,9 +394,20 @@ int do_client_loop(char *tox_id_str)
                     {
                         if(FD_ISSET(tun->sockfd, &fds))
                         {
-                            int nbytes = recv(tun->sockfd, 
-                                    tox_packet_buf + PROTOCOL_BUFFER_OFFSET, 
-                                    READ_BUFFER_SIZE, 0);
+                            int nbytes;
+                            if(client_local_port_mode)
+                            {
+                                nbytes = recv(tun->sockfd, 
+                                        tox_packet_buf + PROTOCOL_BUFFER_OFFSET, 
+                                        READ_BUFFER_SIZE, 0);
+                            }
+                            else
+                            {
+                                nbytes = read(tun->sockfd,
+                                        tox_packet_buf + PROTOCOL_BUFFER_OFFSET, 
+                                        READ_BUFFER_SIZE
+                                );
+                            }
 
                             /* Check if connection closed */
                             if(nbytes == 0)
@@ -392,7 +438,7 @@ int do_client_loop(char *tox_id_str)
                                 frame->data_length = nbytes;
                                 send_frame(frame, tox_packet_buf);
 
-                                printf("Wrote %d bytes from sock %d to tunnel %d\n", nbytes, tun->sockfd, tun->connid);
+//                                printf("Wrote %d bytes from sock %d to tunnel %d\n", nbytes, tun->sockfd, tun->connid);
                             }
                         }
                     }

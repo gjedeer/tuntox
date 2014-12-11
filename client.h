@@ -12,6 +12,7 @@
 #define CLIENT_STATE_FORWARDING 10
 #define CLIENT_STATE_SHUTDOWN 11
 #define CLIENT_STATE_BIND_PORT 12
+#define CLIENT_STATE_SETUP_PIPE 13
 
 int handle_pong_frame(protocol_frame *rcvd_frame);
 int handle_acktunnel_frame(protocol_frame *rcvd_frame);

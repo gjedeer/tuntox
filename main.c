@@ -94,7 +94,7 @@ tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber)
 
 void tunnel_delete(tunnel *t)
 {
-    printf("Deleting tunnel #%d\n", t->connid);
+    fprintf(stderr, "Deleting tunnel #%d\n", t->connid);
     if(t->sockfd)
     {
         close(t->sockfd);
@@ -331,10 +331,10 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
     strncpy(hostname, rcvd_frame->data, rcvd_frame->data_length);
     hostname[rcvd_frame->data_length] = '\0';
 
-    printf("Got a request to forward data from %s:%d\n", hostname, port);
+    fprintf(stderr, "Got a request to forward data from %s:%d\n", hostname, port);
 
     tunnel_id = get_random_tunnel_id();
-    printf("Tunnel ID: %d\n", tunnel_id);
+    fprintf(stderr, "Tunnel ID: %d\n", tunnel_id);
     /* TODO make connection */
     sockfd = get_client_socket(hostname, port);
     if(sockfd > 0)
@@ -509,7 +509,7 @@ int parse_lossless_packet(void *sender_uc, const uint8_t *data, uint32_t len)
     frame->data_length =                INT16_AT(data, 6);
     frame->data = (uint8_t *)(data + PROTOCOL_BUFFER_OFFSET);
     frame->friendnumber = *((uint32_t*)sender_uc);
-    printf("Got protocol frame magic 0x%x type 0x%x from friend %d\n", frame->magic, frame->packet_type, frame->friendnumber);
+    fprintf(stderr, "Got protocol frame magic 0x%x type 0x%x from friend %d\n", frame->magic, frame->packet_type, frame->friendnumber);
 
     if(len < frame->data_length + PROTOCOL_BUFFER_OFFSET)
     {
@@ -639,13 +639,13 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *d
     int32_t friendnumber;
     int32_t *friendnumber_ptr = NULL;
 
-    printf("Got friend request\n");
+    fprintf(stderr, "Got friend request\n");
 
     friendnumber = tox_add_friend_norequest(tox, public_key);
 
     memset(tox_printable_id, '\0', sizeof(tox_printable_id));
     id_to_string(tox_printable_id, public_key);
-    printf("Accepted friend request from %s as %d\n", tox_printable_id, friendnumber);
+    fprintf(stderr, "Accepted friend request from %s as %d\n", tox_printable_id, friendnumber);
 
     /* TODO: this is not freed right now, we're leaking 4 bytes per contact (OMG!) */
     friendnumber_ptr = malloc(sizeof(int32_t));
@@ -662,7 +662,7 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *d
 
 void cleanup(int status, void *tmp)
 {
-    printf("kthxbye\n");
+    fprintf(stderr, "kthxbye\n");
     fflush(stdout);
     tox_kill(tox);
     if(client_socket)
@@ -726,7 +726,7 @@ int do_server_loop()
                     char data[PROTOCOL_BUFFER_OFFSET];
                     protocol_frame frame_st, *frame;
 
-                    printf("conn closed!\n");
+                    fprintf(stderr, "conn closed!\n");
 
                     frame = &frame_st;
                     memset(frame, 0, sizeof(protocol_frame));
@@ -738,7 +738,6 @@ int do_server_loop()
 
                     tunnel_delete(tun);
                                         
-                    /* TODO remove tunnel? resume connection? */
                     continue;
                 }
                 else
@@ -775,7 +774,7 @@ int main(int argc, char *argv[])
     unsigned char tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2 + 1];
     int oc;
 
-    while ((oc = getopt(argc, argv, "L:pi:C:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:P:")) != -1)
     {
         switch(oc)
         {
@@ -794,8 +793,12 @@ int main(int argc, char *argv[])
                 /* Pipe forwarding */
                 client_mode = 1;
                 client_pipe_mode = 1;
-                remote_port = atoi(optarg);
-                fprintf(stderr, "Forwarding remote port %d\n", remote_port);
+                if(parse_pipe_port_forward(optarg, &remote_host, &remote_port) < 0)
+                {
+                    fprintf(stderr, "Invalid value for -P option - use something like -P 127.0.0.1:22\n");
+                    exit(1);
+                }
+                fprintf(stderr, "Forwarding remote port %d to stdin/out\n", remote_port);
                 break;
             case 'p':
                 /* Ping */
@@ -843,7 +846,7 @@ int main(int argc, char *argv[])
         tox_get_address(tox, tox_id);
         id_to_string(tox_printable_id, tox_id);
         tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2] = '\0';
-        printf("Generated Tox ID: %s\n", tox_printable_id);
+        fprintf(stderr, "Generated Tox ID: %s\n", tox_printable_id);
 
         if(!remote_tox_id)
         {
@@ -866,7 +869,7 @@ int main(int argc, char *argv[])
         memset(tox_printable_id, '\0', sizeof(tox_printable_id));
         id_to_string(tox_printable_id, tox_id);
         tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2] = '\0';
-        printf("Using Tox ID: %s\n", tox_printable_id);
+        fprintf(stderr, "Using Tox ID: %s\n", tox_printable_id);
 
         tox_callback_friend_request(tox, accept_friend_request, NULL);
         do_server_loop();
