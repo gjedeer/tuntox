@@ -130,29 +130,11 @@ void set_tox_username(Tox *tox)
 
     gethostname(hostname, 1024);
     hostname[1023] = '\0';
-# if 0
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC; /*either IPV4 or IPV6*/
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_CANONNAME;
-
-    if ((gai_result = getaddrinfo(hostname, "ftp", &hints, &info)) != 0) 
-    {
-	    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(gai_result));
-	    exit(1);
-    }
-
-    for(p = info; p != NULL; p = p->ai_next) 
-    {
-	    printf("hostname: %s\n", p->ai_canonname);
-    }
-# endif
 
     tox_set_name(tox, hostname, strlen(hostname));
-
-//    freeaddrinfo(info);
 }
-// get sockaddr, IPv4 or IPv6:
+
+/* Get sockaddr, IPv4 or IPv6 */
 void *get_in_addr(struct sockaddr *sa)
 {
     if (sa->sa_family == AF_INET) 
