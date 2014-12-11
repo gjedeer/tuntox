@@ -153,17 +153,16 @@ void set_tox_username(Tox *tox)
 //    freeaddrinfo(info);
 }
 // get sockaddr, IPv4 or IPv6:
-/* From Beej */
 void *get_in_addr(struct sockaddr *sa)
 {
-    if (sa->sa_family == AF_INET) {
+    if (sa->sa_family == AF_INET) 
+    {
         return &(((struct sockaddr_in*)sa)->sin_addr);
     }
 
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-/* From Beej */
 int get_client_socket(char *hostname, int port)
 {
     int sockfd, numbytes;  
@@ -179,13 +178,27 @@ int get_client_socket(char *hostname, int port)
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
-    if ((rv = getaddrinfo(hostname, port_str, &hints, &servinfo)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        return -1;
+    if ((rv = getaddrinfo(hostname, port_str, &hints, &servinfo)) != 0) 
+    {
+        /* Add a special case for "localhost" when name resolution is broken */
+        if(!strncmp("localhost", hostname, 256))
+        {
+            const char localhostname[] = "127.0.0.1";
+            if ((rv = getaddrinfo(localhostname, port_str, &hints, &servinfo)) != 0) {
+                fprintf(stderr, "getaddrinfo failed for 127.0.0.1: %s\n", gai_strerror(rv));
+                return -1;
+            }
+        }
+        else
+        {
+            fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+            return -1;
+        }
     }
 
     // loop through all the results and connect to the first we can
-    for(p = servinfo; p != NULL; p = p->ai_next) {
+    for(p = servinfo; p != NULL; p = p->ai_next) 
+    {
         if (p->ai_family != AF_INET && p->ai_family != AF_INET6)
                     continue;
 
@@ -209,8 +222,7 @@ int get_client_socket(char *hostname, int port)
         return -1;
     }
 
-    inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
-            s, sizeof s);
+    inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr), s, sizeof s);
     fprintf(stderr, "connecting to %s\n", s);
 
     freeaddrinfo(servinfo); // all done with this structure
