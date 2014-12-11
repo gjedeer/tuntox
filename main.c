@@ -388,7 +388,7 @@ int handle_client_tcp_frame(protocol_frame *rcvd_frame)
                 tun->sockfd, 
                 rcvd_frame->data + offset,
                 rcvd_frame->data_length - offset,
-                0
+                MSG_NOSIGNAL
         );
 
         if(sent_bytes < 0)
