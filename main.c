@@ -770,6 +770,7 @@ void help()
     fprintf(stderr, "-L <localport>:<remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to 127.0.0.1:<localport>\n");
     fprintf(stderr, "-P <remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to stdin/stdout (SSH ProxyCommand mode)\n");
     fprintf(stderr, "-p - ping the server from -i and exit\n");
+    fprintf(stderr, "-C <dir> - save private key in <dir> instead of /etc/tuntox in server mode\n");
 }
 
 int main(int argc, char *argv[])
