@@ -12,6 +12,8 @@ If you don't know what Tox is - it's an instant messenger protocol which is full
 
 Get the binaries from Releases tab on github. Just download the correct file for your architecture, execute chmod +x and you're done. The binaries are signed with my PGP key, [11C1 B15A 5D5D D662 E469 928A EBDA 6B97 4ED3 D2B7](https://keybase.io/gdr).
 
+If you miss the times when men wrote their own device drivers, see BUILD.md.
+
 ## Running the server
 
 Run the Tuntox server on a laptop which connects via 3G, on your home computer behind six NATs or on your Raspberry Pi. No ports need to be forwarded to its public IP - the machine will be accessible via the Tox overlay network.
