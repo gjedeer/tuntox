@@ -6,6 +6,7 @@
 # tokssh user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
 # tokssh 5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
 # tokssh -p 2222 -o ForwardAgent=yes user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
+#
 
 array=( $@ )
 len=${#array[@]}
@@ -26,6 +27,3 @@ else
 	ssh -o ProxyCommand="tuntox -i $toxid -P 127.0.0.1:%p" $args localhost
 fi
 
-
-
-#ssh -o ProxyCommand='tuntox -i %h -P 127.0.0.1:22' $args %r@localhost
