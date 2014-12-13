@@ -489,6 +489,12 @@ int parse_lossless_packet(void *sender_uc, const uint8_t *data, uint32_t len)
         return -1;
     }
 
+	if(!data)
+	{
+		fprintf(stderr, "Got NULL pointer from toxcore - WTF?\n");
+		return -1;
+	}
+
     if(data[0] != PROTOCOL_MAGIC_HIGH || data[1] != PROTOCOL_MAGIC_LOW)
     {
         fprintf(stderr, "Received data frame with invalid protocol magic number 0x%x%x\n", data[0], data[1]);
@@ -835,6 +841,19 @@ int main(int argc, char *argv[])
     tox_options.proxy_enabled = 0;
 
     tox = tox_new(&tox_options);
+	if(tox == NULL)
+	{
+		fprintf(stderr, "tox_new() failed - trying without proxy\n");
+		if(!tox_options.proxy_enabled || (tox_options.proxy_enabled = 0, (tox = tox_new(&tox_options)) == NULL))
+		{
+			fprintf(stderr, "tox_new() failed - trying without IPv6\n");
+			if(!tox_options.ipv6enabled || (tox_options.ipv6enabled = 0, (tox = tox_new(&tox_options)) == NULL))
+			{
+				fprintf(stderr, "tox_new() failed - exiting\n");
+				exit(1);
+			}
+		}
+	}
 
     set_tox_username(tox);
 
