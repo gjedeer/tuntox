@@ -223,6 +223,7 @@ int get_client_socket(char *hostname, int port)
 int send_frame(protocol_frame *frame, uint8_t *data)
 {
     int rv = -1;
+    int try = 0;
     int i;
 
     data[0] = PROTOCOL_MAGIC_HIGH;
@@ -234,9 +235,11 @@ int send_frame(protocol_frame *frame, uint8_t *data)
     data[6] = BYTE2(frame->data_length);
     data[7] = BYTE1(frame->data_length);
 
-    for(i = 0; i < 17;)
+    for(i = 0; i < 65;) /* 1.27 seconds per packet max */
     {
         int j;
+
+        try++;
 
         rv = tox_send_lossless_packet(
                 tox,
@@ -267,7 +270,7 @@ int send_frame(protocol_frame *frame, uint8_t *data)
 
     if(i > 0 && rv >= 0)
     {
-        fprintf(stderr, "Packet succeeded at try %d\n", i+1);
+        fprintf(stderr, "Packet succeeded at try %d\n", try);
     }
 
     return rv;
