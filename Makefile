@@ -3,7 +3,7 @@ DEPS=libtoxcore
 CC=gcc
 CFLAGS=-g #-std=c99
 CFLAGS += $(shell pkg-config --cflags $(DEPS))
-LDFLAGS=-g -pthread -lm -static
+LDFLAGS=-g -pthread -lm -static -lrt
 LDFLAGS += $(shell pkg-config --libs $(DEPS))
 OBJECTS=$(SOURCES:.c=.o)
 INCLUDES = $(wildcard *.h)
