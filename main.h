@@ -61,7 +61,7 @@ typedef struct protocol_frame_t {
 	uint16_t packet_type;
 	uint16_t connid;
 	uint16_t data_length;
-	const uint8_t *data;
+	uint8_t *data;
 } protocol_frame;
 
 

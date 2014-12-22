@@ -37,6 +37,7 @@ void to_hex(char_t *a, const char_t *p, int size)
             *a++ = c  - 10 + 'A';
         }
     }
+    a = '\0';
 }
 
 /* From utox/util.c */
@@ -80,6 +81,7 @@ int string_to_id(char_t *w, char_t *a)
     return 1;
 }
 
+/* Parse the -L parameter */
 /* 0 = success */
 int parse_local_port_forward(char *string, int *local_port, char **hostname, int *remote_port)
 {
@@ -97,6 +99,27 @@ int parse_local_port_forward(char *string, int *local_port, char **hostname, int
     }
 
     *local_port = atoi(lport);
+    *hostname = host;
+    *remote_port = atoi(rport);
+
+    return 0;
+}
+
+/* Parse the -P parameter */
+/* 0 = success */
+int parse_pipe_port_forward(char *string, char **hostname, int *remote_port)
+{
+    char *host;
+    char *rport;
+    
+    host = strtok(string, ":");
+    rport = strtok(NULL, ":");
+
+    if(!host || !rport)
+    {
+        return -1;
+    }
+
     *hostname = host;
     *remote_port = atoi(rport);
 
