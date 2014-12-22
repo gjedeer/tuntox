@@ -494,11 +494,13 @@ int parse_lossless_packet(void *sender_uc, const uint8_t *data, uint32_t len)
         return -1;
     }
 
+	/*
 	if(!data)
 	{
 		fprintf(stderr, "Got NULL pointer from toxcore - WTF?\n");
 		return -1;
 	}
+	*/
 
     if(data[0] != PROTOCOL_MAGIC_HIGH || data[1] != PROTOCOL_MAGIC_LOW)
     {
