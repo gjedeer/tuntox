@@ -2,6 +2,7 @@
 #include <string.h>
 #include <tox/tox.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 void writechecksum(uint8_t *address)
 {
