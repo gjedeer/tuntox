@@ -17,4 +17,7 @@ tuntox: $(OBJECTS) $(INCLUDES)
 cscope.out:
 	cscope -bv ./*.[ch] 
 
-all: cscope.out tuntox
+#gitversion.c: .git/HEAD .git/index
+#    echo "const char *gitversion = \"$(shell git rev-parse HEAD)\";" > $@
+
+all: cscope.out tuntox gitversion.c

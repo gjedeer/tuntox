@@ -1,6 +1,7 @@
 #include "main.h"
 #include "client.h"
 #include "tox_bootstrap.h"
+#include "log.h"
 
 static Tox_Options tox_options;
 Tox *tox;
@@ -55,7 +56,7 @@ uint16_t get_random_tunnel_id()
         {
             return tunnel_id;
         }
-        fprintf(stderr, "[i] Found duplicated tunnel ID %d\n", key);
+        log_printf(L_WARNING, "[i] Found duplicated tunnel ID %d\n", key);
     }
 }
 
@@ -83,7 +84,7 @@ tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber)
     t->connid = connid;
     t->friendnumber = friendnumber;
 
-    fprintf(stderr, "Created a new tunnel object connid=%d sockfd=%d\n", connid, sockfd);
+    log_printf(L_INFO, "Created a new tunnel object connid=%d sockfd=%d\n", connid, sockfd);
 
     update_select_nfds(t->sockfd);
 
@@ -94,7 +95,7 @@ tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber)
 
 void tunnel_delete(tunnel *t)
 {
-    fprintf(stderr, "Deleting tunnel #%d\n", t->connid);
+    log_printf(L_INFO, "Deleting tunnel #%d\n", t->connid);
     if(t->sockfd)
     {
         close(t->sockfd);
@@ -167,13 +168,13 @@ int get_client_socket(char *hostname, int port)
         {
             const char localhostname[] = "127.0.0.1";
             if ((rv = getaddrinfo(localhostname, port_str, &hints, &servinfo)) != 0) {
-                fprintf(stderr, "getaddrinfo failed for 127.0.0.1: %s\n", gai_strerror(rv));
+                log_printf(L_WARNING, "getaddrinfo failed for 127.0.0.1: %s\n", gai_strerror(rv));
                 return -1;
             }
         }
         else
         {
-            fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+            log_printf(L_WARNING, "getaddrinfo: %s\n", gai_strerror(rv));
             return -1;
         }
     }
@@ -200,16 +201,16 @@ int get_client_socket(char *hostname, int port)
     }
 
     if (p == NULL) {
-        fprintf(stderr, "failed to connect to %s:%d\n", hostname, port);
+        log_printf(L_WARNING, "failed to connect to %s:%d\n", hostname, port);
         return -1;
     }
 
     inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr), s, sizeof s);
-    fprintf(stderr, "connecting to %s\n", s);
+    log_printf(L_DEBUG, "connecting to %s\n", s);
 
     freeaddrinfo(servinfo); // all done with this structure
 
-    fprintf(stderr, "Connected to %s:%d\n", hostname, port);
+    log_printf(L_DEBUG, "Connected to %s:%d\n", hostname, port);
 
     return sockfd;
 }
@@ -251,7 +252,7 @@ int send_frame(protocol_frame *frame, uint8_t *data)
         if(rv < 0)
         {
             /* If this branch is ran, most likely we've hit congestion control. */
-            fprintf(stderr, "[%d] Failed to send packet to friend %d\n", i, frame->friendnumber);
+            log_printf(L_DEBUG, "[%d] Failed to send packet to friend %d\n", i, frame->friendnumber);
         }
         else
         {
@@ -270,7 +271,7 @@ int send_frame(protocol_frame *frame, uint8_t *data)
 
     if(i > 0 && rv >= 0)
     {
-        fprintf(stderr, "Packet succeeded at try %d\n", try);
+        log_printf(L_DEBUG, "Packet succeeded at try %d\n", try);
     }
 
     return rv;
@@ -319,7 +320,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
 
     if(client_mode)
     {
-        fprintf(stderr, "Got tunnel request frame from friend #%d when in client mode\n", rcvd_frame->friendnumber);
+        log_printf(L_WARNING, "Got tunnel request frame from friend #%d when in client mode\n", rcvd_frame->friendnumber);
         return -1;
     }
     
@@ -327,17 +328,17 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
     hostname = calloc(1, rcvd_frame->data_length + 1);
     if(!hostname)
     {
-        fprintf(stderr, "Could not allocate memory for tunnel request hostname\n");
+        log_printf(L_ERROR, "Could not allocate memory for tunnel request hostname\n");
         return -1;
     }
 
     strncpy(hostname, rcvd_frame->data, rcvd_frame->data_length);
     hostname[rcvd_frame->data_length] = '\0';
 
-    fprintf(stderr, "Got a request to forward data from %s:%d\n", hostname, port);
+    log_printf(L_INFO, "Got a request to forward data from %s:%d\n", hostname, port);
 
     tunnel_id = get_random_tunnel_id();
-    fprintf(stderr, "Tunnel ID: %d\n", tunnel_id);
+    log_printf(L_DEBUG, "Tunnel ID: %d\n", tunnel_id);
     /* TODO make connection */
     sockfd = get_client_socket(hostname, port);
     if(sockfd > 0)
@@ -347,17 +348,17 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         {
             FD_SET(sockfd, &master_server_fds);
             update_select_nfds(sockfd);
-            fprintf(stderr, "Created tunnel, yay!\n");
+            log_printf(L_DEBUG, "Created tunnel, yay!\n");
             send_tunnel_ack_frame(tun);
         }
         else
         {
-            fprintf(stderr, "Couldn't allocate memory for tunnel\n");
+            log_printf(L_ERROR, "Couldn't allocate memory for tunnel\n");
         }
     }
     else
     {
-        fprintf(stderr, "Could not connect to %s:%d\n", hostname, port);
+        log_printf(L_WARNING, "Could not connect to %s:%d\n", hostname, port);
         /* TODO send reject */
     }
 }
@@ -373,13 +374,13 @@ int handle_client_tcp_frame(protocol_frame *rcvd_frame)
 
     if(!tun)
     {
-        fprintf(stderr, "Got TCP frame with unknown tunnel ID %d\n", rcvd_frame->connid);
+        log_printf(L_WARNING, "Got TCP frame with unknown tunnel ID %d\n", rcvd_frame->connid);
         return -1;
     }
 
     if(tun->friendnumber != rcvd_frame->friendnumber)
     {
-        fprintf(stderr, "Friend #%d tried to send packet to a tunnel which belongs to #%d\n", rcvd_frame->friendnumber, tun->friendnumber);
+        log_printf(L_WARNING, "Friend #%d tried to send packet to a tunnel which belongs to #%d\n", rcvd_frame->friendnumber, tun->friendnumber);
         return -1;
     }
 
@@ -396,7 +397,7 @@ int handle_client_tcp_frame(protocol_frame *rcvd_frame)
 
         if(sent_bytes < 0)
         {
-            fprintf(stderr, "Could not write to socket %d: %s\n", tun->sockfd, strerror(errno));
+            log_printf(L_WARNING, "Could not write to socket %d: %s\n", tun->sockfd, strerror(errno));
             return -1;
         }
 
@@ -417,13 +418,13 @@ int handle_client_tcp_fin_frame(protocol_frame *rcvd_frame)
 
     if(!tun)
     {
-        fprintf(stderr, "Got TCP FIN frame with unknown tunnel ID %d\n", rcvd_frame->connid);
+        log_printf(L_WARNING, "Got TCP FIN frame with unknown tunnel ID %d\n", rcvd_frame->connid);
         return -1;
     }
 
     if(tun->friendnumber != rcvd_frame->friendnumber)
     {
-        fprintf(stderr, "Friend #%d tried to close tunnel which belongs to #%d\n", rcvd_frame->friendnumber, tun->friendnumber);
+        log_printf(L_WARNING, "Friend #%d tried to close tunnel which belongs to #%d\n", rcvd_frame->friendnumber, tun->friendnumber);
         return -1;
     }
     
@@ -468,7 +469,7 @@ int handle_frame(protocol_frame *frame)
             }
             break;
         default:
-            fprintf(stderr, "Got unknown packet type 0x%x from friend %d\n", 
+            log_printf(L_DEBUG, "Got unknown packet type 0x%x from friend %d\n", 
                     frame->packet_type,
                     frame->friendnumber
             );
@@ -488,28 +489,26 @@ int parse_lossless_packet(Tox *tox, int32_t friendnumber, const uint8_t *data, u
 
     if(len < PROTOCOL_BUFFER_OFFSET)
     {
-        fprintf(stderr, "Received too short data frame - only %d bytes, at least %d expected\n", len, PROTOCOL_BUFFER_OFFSET);
+        log_printf(L_WARNING, "Received too short data frame - only %d bytes, at least %d expected\n", len, PROTOCOL_BUFFER_OFFSET);
         return -1;
     }
 
-	/*
-	if(!data)
-	{
-		fprintf(stderr, "Got NULL pointer from toxcore - WTF?\n");
-		return -1;
-	}
-	*/
+    if(!data)
+    {
+        log_printf(L_ERROR, "Got NULL pointer from toxcore - WTF?\n");
+        return -1;
+    }
 
     if(data[0] != PROTOCOL_MAGIC_HIGH || data[1] != PROTOCOL_MAGIC_LOW)
     {
-        fprintf(stderr, "Received data frame with invalid protocol magic number 0x%x%x\n", data[0], data[1]);
+        log_printf(L_WARNING, "Received data frame with invalid protocol magic number 0x%x%x\n", data[0], data[1]);
         return -1;
     }
 
     frame = calloc(1, sizeof(protocol_frame));
     if(!frame)
     {
-        fprintf(stderr, "Could not allocate memory for protocol_frame_t\n");
+        log_printf(L_ERROR, "Could not allocate memory for protocol_frame_t\n");
         return -1;
     }
 
@@ -520,17 +519,17 @@ int parse_lossless_packet(Tox *tox, int32_t friendnumber, const uint8_t *data, u
     frame->data_length =                INT16_AT(data, 6);
     frame->data = (uint8_t *)(data + PROTOCOL_BUFFER_OFFSET);
     frame->friendnumber = *((uint32_t*)sender_uc);
-    fprintf(stderr, "Got protocol frame magic 0x%x type 0x%x from friend %d\n", frame->magic, frame->packet_type, frame->friendnumber);
+    log_printf(L_DEBUG, "Got protocol frame magic 0x%x type 0x%x from friend %d\n", frame->magic, frame->packet_type, frame->friendnumber);
 
     if(len < frame->data_length + PROTOCOL_BUFFER_OFFSET)
     {
-        fprintf(stderr, "Received frame too small (attempted buffer overflow?): %d bytes, excepted at least %d bytes\n", len, frame->data_length + PROTOCOL_BUFFER_OFFSET);
+        log_printf(L_WARNING, "Received frame too small (attempted buffer overflow?): %d bytes, excepted at least %d bytes\n", len, frame->data_length + PROTOCOL_BUFFER_OFFSET);
         return -1;
     }
 
     if(frame->data_length > (TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET))
     {
-        fprintf(stderr, "Declared data length too big (attempted buffer overflow?): %d bytes, excepted at most %d bytes\n", frame->data_length, (TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET));
+        log_printf(L_WARNING, "Declared data length too big (attempted buffer overflow?): %d bytes, excepted at most %d bytes\n", frame->data_length, (TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET));
         return -1;
     }
 
@@ -543,14 +542,14 @@ int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_nu
     protocol_frame frame_i, *frame;
     char *data = NULL;
 
-    fprintf(stderr, "Sending packet to friend #%d to forward %s:%d\n", friend_number, remote_host, remote_port);
+    log_printf(L_INFO, "Sending packet to friend #%d to forward %s:%d\n", friend_number, remote_host, remote_port);
     packet_length = PROTOCOL_BUFFER_OFFSET + strlen(remote_host);
     frame = &frame_i;
 
     data = calloc(1, packet_length);
     if(!data)
     {
-        fprintf(stderr, "Could not allocate memory for tunnel request packet\n");
+        log_printf(L_ERROR, "Could not allocate memory for tunnel request packet\n");
         exit(1);
     }
     strcpy(data+PROTOCOL_BUFFER_OFFSET, remote_host);
@@ -595,20 +594,20 @@ static void write_save(Tox *tox)
         fflush(file);
         fclose(file);
         if (rename((char*)path_tmp, (char*)path_real) != 0) {
-            fprintf(stderr, "Failed to rename file. %s to %s deleting and trying again\n", path_tmp, path_real);
+            log_printf(L_WARNING, "Failed to rename file. %s to %s deleting and trying again\n", path_tmp, path_real);
             remove((const char *)path_real);
             if (rename((char*)path_tmp, (char*)path_real) != 0) {
-                fprintf(stderr, "Saving Failed\n");
+                log_printf(L_WARNING, "Saving Failed\n");
             } else {
-                fprintf(stderr, "Saved data\n");
+                log_printf(L_DEBUG, "Saved data\n");
             }
         } else {
-            fprintf(stderr, "Saved data\n");
+            log_printf(L_DEBUG, "Saved data\n");
         }
     }
     else
     {
-        fprintf(stderr, "Could not open save file\n");
+        log_printf(L_WARNING, "Could not open save file\n");
     }
 
     free(data);
@@ -639,7 +638,7 @@ static int load_save(Tox *tox)
     }
     else
     {
-        fprintf(stderr, "Could not open save file\n");
+        log_printf(L_WARNING, "Could not open save file\n");
         return 0;
     }
 }
@@ -650,19 +649,19 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *d
     int32_t friendnumber;
     int32_t *friendnumber_ptr = NULL;
 
-    fprintf(stderr, "Got friend request\n");
+    log_printf(L_DEBUG, "Got friend request\n");
 
     friendnumber = tox_add_friend_norequest(tox, public_key);
 
     memset(tox_printable_id, '\0', sizeof(tox_printable_id));
     id_to_string(tox_printable_id, public_key);
-    fprintf(stderr, "Accepted friend request from %s as %d\n", tox_printable_id, friendnumber);
+    log_printf(L_INFO, "Accepted friend request from %s as %d\n", tox_printable_id, friendnumber);
 
     /* TODO: this is not freed right now, we're leaking 4 bytes per contact (OMG!) */
     friendnumber_ptr = malloc(sizeof(int32_t));
     if(!friendnumber_ptr)
     {
-        fprintf(stderr, "Could not allocate memory for friendnumber_ptr\n");
+        log_printf(L_ERROR, "Could not allocate memory for friendnumber_ptr\n");
         return;
     }
 
@@ -673,7 +672,7 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *d
 
 void cleanup(int status, void *tmp)
 {
-    fprintf(stderr, "kthxbye\n");
+    log_printf(L_DEBUG, "kthxbye\n");
     fflush(stdout);
     tox_kill(tox);
     if(client_socket)
@@ -711,11 +710,11 @@ int do_server_loop()
             connected = tmp_isconnected;
             if(connected)
             {
-                fprintf(stderr, "Connected to Tox network\n");
+                log_printf(L_DEBUG, "Connected to Tox network\n");
             }
             else
             {
-                fprintf(stderr, "Disconnected from Tox network\n");
+                log_printf(L_DEBUG, "Disconnected from Tox network\n");
             }
         }
 
@@ -737,7 +736,7 @@ int do_server_loop()
                     char data[PROTOCOL_BUFFER_OFFSET];
                     protocol_frame frame_st, *frame;
 
-                    fprintf(stderr, "conn closed!\n");
+                    log_printf(L_WARNING, "conn closed!\n");
 
                     frame = &frame_st;
                     memset(frame, 0, sizeof(protocol_frame));
@@ -777,6 +776,8 @@ void help()
     fprintf(stderr, "-P <remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to stdin/stdout (SSH ProxyCommand mode)\n");
     fprintf(stderr, "-p - ping the server from -i and exit\n");
     fprintf(stderr, "-C <dir> - save private key in <dir> instead of /etc/tuntox in server mode\n");
+    fprintf(stderr, "-d - debug mode\n");
+    fprintf(stderr, "-q - quiet mode\n");
 }
 
 int main(int argc, char *argv[])
@@ -785,7 +786,7 @@ int main(int argc, char *argv[])
     unsigned char tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2 + 1];
     int oc;
 
-    while ((oc = getopt(argc, argv, "L:pi:C:P:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:P:dq")) != -1)
     {
         switch(oc)
         {
@@ -795,10 +796,14 @@ int main(int argc, char *argv[])
                 client_local_port_mode = 1;
                 if(parse_local_port_forward(optarg, &local_port, &remote_host, &remote_port) < 0)
                 {
-                    fprintf(stderr, "Invalid value for -L option - use something like -L 22:127.0.0.1:22\n");
+                    log_printf(L_ERROR, "Invalid value for -L option - use something like -L 22:127.0.0.1:22\n");
                     exit(1);
                 }
-                fprintf(stderr, "Forwarding remote port %d to local port %d\n", remote_port, local_port);
+                if(min_log_level == L_UNSET)
+                {
+                    min_log_level = L_INFO;
+                }
+                log_printf(L_DEBUG, "Forwarding remote port %d to local port %d\n", remote_port, local_port);
                 break;
             case 'P':
                 /* Pipe forwarding */
@@ -806,15 +811,23 @@ int main(int argc, char *argv[])
                 client_pipe_mode = 1;
                 if(parse_pipe_port_forward(optarg, &remote_host, &remote_port) < 0)
                 {
-                    fprintf(stderr, "Invalid value for -P option - use something like -P 127.0.0.1:22\n");
+                    log_printf(L_ERROR, "Invalid value for -P option - use something like -P 127.0.0.1:22\n");
                     exit(1);
                 }
-                fprintf(stderr, "Forwarding remote port %d to stdin/out\n", remote_port);
+                if(min_log_level == L_UNSET)
+                {
+                    min_log_level = L_ERROR;
+                }
+                log_printf(L_INFO, "Forwarding remote port %d to stdin/out\n", remote_port);
                 break;
             case 'p':
                 /* Ping */
                 client_mode = 1;
                 ping_mode = 1;
+                if(min_log_level == L_UNSET)
+                {
+                    min_log_level = L_INFO;
+                }
                 break;
             case 'i':
                 /* Tox ID */
@@ -831,12 +844,23 @@ int main(int argc, char *argv[])
                     config_path[optarg_len + 1] = '\0';
                 }
                 break;
+            case 'd':
+                min_log_level = L_DEBUG;
+                break;
+            case 'q':
+                min_log_level = L_ERROR;
+                break;
             case '?':
             default:
                 help();
                 exit(1);
         }
     }
+
+	if(!client_mode && min_log_level == L_UNSET)
+	{
+		min_log_level = L_INFO;
+	}
 
     on_exit(cleanup, NULL);
 
@@ -846,19 +870,19 @@ int main(int argc, char *argv[])
     tox_options.proxy_enabled = 0;
 
     tox = tox_new(&tox_options);
-	if(tox == NULL)
-	{
-		fprintf(stderr, "tox_new() failed - trying without proxy\n");
-		if(!tox_options.proxy_enabled || (tox_options.proxy_enabled = 0, (tox = tox_new(&tox_options)) == NULL))
-		{
-			fprintf(stderr, "tox_new() failed - trying without IPv6\n");
-			if(!tox_options.ipv6enabled || (tox_options.ipv6enabled = 0, (tox = tox_new(&tox_options)) == NULL))
-			{
-				fprintf(stderr, "tox_new() failed - exiting\n");
-				exit(1);
-			}
-		}
-	}
+    if(tox == NULL)
+    {
+        log_printf(L_DEBUG, "tox_new() failed - trying without proxy\n");
+        if(!tox_options.proxy_enabled || (tox_options.proxy_enabled = 0, (tox = tox_new(&tox_options)) == NULL))
+        {
+            log_printf(L_DEBUG, "tox_new() failed - trying without IPv6\n");
+            if(!tox_options.ipv6enabled || (tox_options.ipv6enabled = 0, (tox = tox_new(&tox_options)) == NULL))
+            {
+                log_printf(L_ERROR, "tox_new() failed - exiting\n");
+                exit(1);
+            }
+        }
+    }
 
     set_tox_username(tox);
 
@@ -870,11 +894,11 @@ int main(int argc, char *argv[])
         tox_get_address(tox, tox_id);
         id_to_string(tox_printable_id, tox_id);
         tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2] = '\0';
-        fprintf(stderr, "Generated Tox ID: %s\n", tox_printable_id);
+        log_printf(L_DEBUG, "Generated Tox ID: %s\n", tox_printable_id);
 
         if(!remote_tox_id)
         {
-            fprintf(stderr, "Tox id is required in client mode. Use -i 58435984ABCDEF475...\n");
+            log_printf(L_ERROR, "Tox id is required in client mode. Use -i 58435984ABCDEF475...\n");
             exit(1);
         }
         do_client_loop(remote_tox_id);
@@ -893,7 +917,7 @@ int main(int argc, char *argv[])
         memset(tox_printable_id, '\0', sizeof(tox_printable_id));
         id_to_string(tox_printable_id, tox_id);
         tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2] = '\0';
-        fprintf(stderr, "Using Tox ID: %s\n", tox_printable_id);
+        log_printf(L_INFO, "Using Tox ID: %s\n", tox_printable_id);
 
         tox_callback_friend_request(tox, accept_friend_request, NULL);
         do_server_loop();

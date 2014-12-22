@@ -1,3 +1,4 @@
+#include "log.h"
 #include "main.h"
 #include "client.h"
 
@@ -53,7 +54,7 @@ int local_bind()
     bind_sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if(bind_sockfd < 0)
     {
-        fprintf(stderr, "Could not create a socket for local listening: %s\n", strerror(errno));
+        log_printf(L_ERROR, "Could not create a socket for local listening: %s\n", strerror(errno));
         exit(1);
     }
 
@@ -68,19 +69,19 @@ int local_bind()
 
     if(bind(bind_sockfd, res->ai_addr, res->ai_addrlen) < 0)
     {
-        fprintf(stderr, "Bind to port %d failed: %s\n", local_port, strerror(errno));
+        log_printf(L_ERROR, "Bind to port %d failed: %s\n", local_port, strerror(errno));
         close(bind_sockfd);
         exit(1);
     }
 
     if(listen(bind_sockfd, 1) < 0)
     {
-        fprintf(stderr, "Listening on port %d failed: %s\n", local_port, strerror(errno));
+        log_printf(L_ERROR, "Listening on port %d failed: %s\n", local_port, strerror(errno));
         close(bind_sockfd);
         exit(1);
     }
 
-    fprintf(stderr, "Bound to local port %d\n", local_port);
+    log_printf(L_DEBUG, "Bound to local port %d\n", local_port);
 }
 
 /* Bind the client.sockfd to a tunnel */
@@ -90,7 +91,7 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
 
     if(!client_mode)
     {
-        fprintf(stderr, "Got ACK tunnel frame when not in client mode!?\n");
+        log_printf(L_WARNING, "Got ACK tunnel frame when not in client mode!?\n");
         return -1;
     }
 
@@ -111,12 +112,12 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
         FD_SET(tun->sockfd, &client_master_fdset);
         if(client_local_port_mode)
         {
-            fprintf(stderr, "Accepted a new connection on port %d\n", local_port);
+            log_printf(L_INFO, "Accepted a new connection on port %d\n", local_port);
         }
     }
     else
     {
-        fprintf(stderr, "This tunnel mode is not supported yet\n");
+        log_printf(L_ERROR, "This tunnel mode is not supported yet\n");
         exit(1);
     }
 }
@@ -132,7 +133,7 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
 
     if(!tun)
     {
-        fprintf(stderr, "Got TCP frame with unknown tunnel ID %d\n", rcvd_frame->connid);
+        log_printf(L_WARNING, "Got TCP frame with unknown tunnel ID %d\n", rcvd_frame->connid);
         return -1;
     }
 
@@ -165,7 +166,7 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
             char data[PROTOCOL_BUFFER_OFFSET];
             protocol_frame frame_st, *frame;
 
-            fprintf(stderr, "Could not write to socket %d: %s\n", write_sockfd, strerror(errno));
+            log_printf(L_INFO, "Could not write to socket %d: %s\n", write_sockfd, strerror(errno));
 
             frame = &frame_st;
             memset(frame, 0, sizeof(protocol_frame));
@@ -198,13 +199,13 @@ int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
 
     if(!tun)
     {
-        fprintf(stderr, "Got TCP FIN frame with unknown tunnel ID %d\n", rcvd_frame->connid);
+        log_printf(L_WARNING, "Got TCP FIN frame with unknown tunnel ID %d\n", rcvd_frame->connid);
         return -1;
     }
 
     if(tun->friendnumber != rcvd_frame->friendnumber)
     {
-        fprintf(stderr, "Friend #%d tried to close tunnel while server is #%d\n", rcvd_frame->friendnumber, tun->friendnumber);
+        log_printf(L_WARNING, "Friend #%d tried to close tunnel while server is #%d\n", rcvd_frame->friendnumber, tun->friendnumber);
         return -1;
     }
     
@@ -225,7 +226,7 @@ int do_client_loop(char *tox_id_str)
 
     if(!string_to_id(tox_id, tox_id_str))
     {
-        fprintf(stderr, "Invalid Tox ID");
+        log_printf(L_ERROR, "Invalid Tox ID");
         exit(1);
     }
 
@@ -235,7 +236,7 @@ int do_client_loop(char *tox_id_str)
         signal(SIGPIPE, SIG_IGN);
     }
 
-    fprintf(stderr, "Connecting to Tox...\n");
+    log_printf(L_INFO, "Connecting to Tox...\n");
 
     while(1)
     {
@@ -258,7 +259,7 @@ int do_client_loop(char *tox_id_str)
                     uint8_t data[] = "Hi, fellow tuntox instance!";
                     uint16_t length = sizeof(data);
 
-                    fprintf(stderr, "Connected. Sending friend request.\n");
+                    log_printf(L_INFO, "Connected. Sending friend request.\n");
 
                     friendnumber = tox_add_friend(
                             tox,
@@ -269,19 +270,19 @@ int do_client_loop(char *tox_id_str)
 
                     if(friendnumber < 0)
                     {
-                        fprintf(stderr, "Error %d adding friend %s\n", friendnumber, tox_id);
+                        log_printf(L_ERROR, "Error %d adding friend %s\n", friendnumber, tox_id);
                         exit(-1);
                     }
 
                     tox_lossless_packet_registerhandler(tox, friendnumber, (PROTOCOL_MAGIC_V1)>>8, parse_lossless_packet, (void*)&friendnumber);
                     state = CLIENT_STATE_SENTREQUEST;
-                    fprintf(stderr, "Waiting for friend to accept us...\n");
+                    log_printf(L_INFO, "Waiting for friend to accept us...\n");
                 }
                 break;
             case CLIENT_STATE_SENTREQUEST:
                 if(tox_get_friend_connection_status(tox, friendnumber) == 1)
                 {
-                    fprintf(stderr, "Friend request accepted!\n");
+                    log_printf(L_INFO, "Friend request accepted!\n");
                     state = CLIENT_STATE_REQUEST_ACCEPTED;
                 }
                 else
@@ -327,7 +328,7 @@ int do_client_loop(char *tox_id_str)
             case CLIENT_STATE_BIND_PORT:
                 if(bind_sockfd < 0)
                 {
-                    fprintf(stderr, "Shutting down - could not bind to listening port\n");
+                    log_printf(L_ERROR, "Shutting down - could not bind to listening port\n");
                     state = CLIENT_STATE_SHUTDOWN;
                 }
                 else
@@ -376,7 +377,7 @@ int do_client_loop(char *tox_id_str)
                         accept_fd = accept(bind_sockfd, NULL, NULL);
                         if(accept_fd != -1)
                         {
-                            fprintf(stderr, "Accepting a new connection - requesting tunnel...\n");
+                            log_printf(L_INFO, "Accepting a new connection - requesting tunnel...\n");
 
                             /* Open a new tunnel for this FD */
                             client_tunnel.sockfd = accept_fd;
@@ -415,7 +416,7 @@ int do_client_loop(char *tox_id_str)
                                 char data[PROTOCOL_BUFFER_OFFSET];
                                 protocol_frame frame_st, *frame;
 
-                                fprintf(stderr, "Connection closed\n");
+                                log_printf(L_INFO, "Connection closed\n");
 
                                 frame = &frame_st;
                                 memset(frame, 0, sizeof(protocol_frame));
