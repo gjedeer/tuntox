@@ -482,7 +482,7 @@ int handle_frame(protocol_frame *frame)
  * It checks for basic inconsistiencies and allocates the
  * protocol_frame structure.
  */
-int parse_lossless_packet(void *sender_uc, const uint8_t *data, uint32_t len)
+int parse_lossless_packet(Tox *tox, int32_t friendnumber, const uint8_t *data, uint32_t len, void *sender_uc)
 {
     protocol_frame *frame = NULL;
 
