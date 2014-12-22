@@ -1,3 +1,4 @@
+#include "log.h"
 #include "util.h"
 #include <string.h>
 #include <tox/tox.h>
@@ -134,7 +135,7 @@ void* file_raw(char *path, uint32_t *size)
 
     file = fopen(path, "rb");
     if(!file) {
-        fprintf(stderr, "File not found (%s)\n", path);
+        log_printf(L_WARNING, "File not found (%s)\n", path);
         return NULL;
     }
 
@@ -149,7 +150,7 @@ void* file_raw(char *path, uint32_t *size)
     fseek(file, 0, SEEK_SET);
 
     if(fread(data, len, 1, file) != 1) {
-        fprintf(stderr, "Read error (%s)\n", path);
+        log_printf(L_WARNING, "Read error (%s)\n", path);
         fclose(file);
         free(data);
         return NULL;
@@ -157,7 +158,7 @@ void* file_raw(char *path, uint32_t *size)
 
     fclose(file);
 
-    fprintf(stderr, "Read %u bytes (%s)\n", len, path);
+    log_printf(L_DEBUG, "Read %u bytes (%s)\n", len, path);
 
     if(size) {
         *size = len;
