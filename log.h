@@ -7,8 +7,11 @@
 #define L_UNSET		0x29a
 
 void log_printf(int level, const char *fmt, ...);
+void log_init(void);
+void log_close(void);
 
 extern int min_log_level;
+extern int use_syslog;
 
 #define d(x) log_printf(L_DEBUG, "%s:%d %s", __FILE__, __LINE__, #x);
 

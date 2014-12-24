@@ -679,6 +679,7 @@ void cleanup(int status, void *tmp)
     {
 	close(client_socket);
     }
+    log_close();
 }
 
 
@@ -778,6 +779,7 @@ void help()
     fprintf(stderr, "-C <dir> - save private key in <dir> instead of /etc/tuntox in server mode\n");
     fprintf(stderr, "-d - debug mode\n");
     fprintf(stderr, "-q - quiet mode\n");
+    fprintf(stderr, "-S - send output to syslog instead of stderr\n");
     fprintf(stderr, "-h - this help message\n");
 }
 
@@ -787,7 +789,9 @@ int main(int argc, char *argv[])
     unsigned char tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2 + 1];
     int oc;
 
-    while ((oc = getopt(argc, argv, "L:pi:C:P:dq")) != -1)
+    log_init();
+
+    while ((oc = getopt(argc, argv, "L:pi:C:P:dqhS")) != -1)
     {
         switch(oc)
         {
@@ -851,7 +855,11 @@ int main(int argc, char *argv[])
             case 'q':
                 min_log_level = L_ERROR;
                 break;
+            case 'S':
+                use_syslog = 1;
+                break;
             case '?':
+            case 'h':
             default:
                 print_version();
                 help();

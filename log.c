@@ -2,11 +2,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 #include <time.h>
 
 #include "log.h"
 
+/*
+ * The minimum log level; set to one of L_* constants from log.h
+ */
 int min_log_level = 666;
+
+/*
+ * 0: send output to stderr
+ * 1: send output to syslog LOG_LOCAL1 facility
+ */
+int use_syslog = 0;
 
 /* Turn log level number to a printable string */
 char *log_printable_level(int level)
@@ -27,6 +37,22 @@ char *log_printable_level(int level)
     return "UNKNOWN";
 }
 
+void log_init(void)
+{
+    if(use_syslog)
+    {
+        openlog("tuntox", LOG_PID, LOG_LOCAL1);
+    }
+}
+
+void log_close(void)
+{
+    if(use_syslog)
+    {
+        closelog();
+    }
+}
+
 /* Output the log to the console */
 void log_printf(int level, const char *fmt, ...)
 {
@@ -42,24 +68,31 @@ void log_printf(int level, const char *fmt, ...)
         return;
     }
 
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-    strftime(logtime, 100, "%F %X", timeinfo);
-
-    level_str = log_printable_level(level);
-
-    if(fmt[strlen(fmt)-1] == '\n')
+    if(!use_syslog)
     {
-        snprintf(logfmt, 2048, "%s: [%s]\t%s", logtime, level_str, fmt);
+        time(&rawtime);
+        timeinfo = localtime(&rawtime);
+        strftime(logtime, 100, "%F %X", timeinfo);
+
+        level_str = log_printable_level(level);
+
+        if(fmt[strlen(fmt)-1] == '\n')
+        {
+            snprintf(logfmt, 2048, "%s: [%s]\t%s", logtime, level_str, fmt);
+        }
+        else
+        {
+            snprintf(logfmt, 2048, "%s: [%s]\t%s\n", logtime, level_str, fmt);
+        }
+
+        va_start(args, fmt);
+        vfprintf(stderr, logfmt, args);
+        va_end(args);
     }
     else
     {
-        snprintf(logfmt, 2048, "%s: [%s]\t%s\n", logtime, level_str, fmt);
+        vsyslog(LOG_MAKEPRI(LOG_LOCAL1, level), fmt, args);
     }
-
-    va_start(args, fmt);
-    vfprintf(stderr, logfmt, args);
-    va_end(args);
 }
 
 
