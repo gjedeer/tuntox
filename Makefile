@@ -8,6 +8,13 @@ LDFLAGS += $(shell pkg-config --libs $(DEPS))
 OBJECTS=$(SOURCES:.c=.o)
 INCLUDES = $(wildcard *.h)
 
+all: cscope.out tuntox 
+
+gitversion.h: .git/HEAD .git/index
+	echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@
+
+gitversion.c: gitversion.h
+
 .c.o: $(INCLUDES)
 	$(CC) $(CFLAGS) $< -c -o $@
 
@@ -16,8 +23,3 @@ tuntox: $(OBJECTS) $(INCLUDES)
 
 cscope.out:
 	cscope -bv ./*.[ch] 
-
-#gitversion.c: .git/HEAD .git/index
-#    echo "const char *gitversion = \"$(shell git rev-parse HEAD)\";" > $@
-
-all: cscope.out tuntox gitversion.c

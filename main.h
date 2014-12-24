@@ -88,4 +88,6 @@ extern tunnel *by_id;
 int parse_lossless_packet(void *sender_uc, const uint8_t *data, uint32_t len);
 tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber);
 void tunnel_delete(tunnel *t);
+
+void print_version(void);
 #endif

@@ -778,6 +778,7 @@ void help()
     fprintf(stderr, "-C <dir> - save private key in <dir> instead of /etc/tuntox in server mode\n");
     fprintf(stderr, "-d - debug mode\n");
     fprintf(stderr, "-q - quiet mode\n");
+    fprintf(stderr, "-h - this help message\n");
 }
 
 int main(int argc, char *argv[])
@@ -852,12 +853,15 @@ int main(int argc, char *argv[])
                 break;
             case '?':
             default:
+                print_version();
                 help();
                 exit(1);
         }
     }
 
     on_exit(cleanup, NULL);
+
+    print_version();
 
     /* Bootstrap tox */
     tox_options.ipv6enabled = TOX_ENABLE_IPV6_DEFAULT;
