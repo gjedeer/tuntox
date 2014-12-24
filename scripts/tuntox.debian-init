@@ -1,0 +1,182 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides: tuntox
+# Required-start: $network $syslog
+# Required-stop: $network $syslog
+# Default-start: 2 3 4 5
+# Default-stop: 0 1 6
+# Short-description: This script takes care of starting and stopping the Tutnox daemon.
+# Description: tuntox is a daemon for tunnelling TCP connections over the Tox protocol
+#    Notes
+#    Modeled after init script for NSCA written by Ethan Galstad (nagios@nagios.org)
+### END INIT INFO
+
+#
+# If you want to use tuntox as a system service, do the following:
+# cp tuntox /usr/bin/
+# cp scripts/tuntox.debian-init /etc/init.d/tuntox
+# update-rc.d tuntox defaults
+#
+# Edit the User ID below (it needs to be a number in static builds)
+#
+
+# User ID to which the program will drop
+USERID=13
+
+DESC="TCP-over-Tox daemon"
+NAME=tuntox
+DAEMON=/usr/bin/$NAME
+DAEMON_CFG_DIR=/etc/tuntox/
+PIDFILE=/var/run/$NAME/$NAME.pid
+DAEMON_ARGS="-C $DAEMON_CFG_DIR -D -F $PIDFILE -U $USERID -d"
+SCRIPTNAME=/etc/init.d/$NAME
+
+# Exit if packages not installed
+[ -x "$DAEMON" ] || exit 5
+
+# Read configuration variable file if it is present
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
+# Load the VERBOSE setting and other rcS variables
+[ -x /lib/init/vars.sh ] && . /lib/init/vars.sh
+
+# Load the VERBOSE setting and other rcS variables
+. /lib/init/vars.sh
+
+# Define LSB log_* functions.
+# Depend on lsb-base (>= 3.0-6) to ensure that this file is present.
+. /lib/lsb/init-functions
+
+mkdir -p /var/run/$NAME
+chown $USERID /var/run/$NAME
+
+#
+# Function that starts the daemon/service
+#
+do_start()
+{
+    # Return value
+    # 0 if daemon has been started
+    # 1 if daemon was already started
+    # 2 if daemon could not be started
+
+    # Test if daemon already exist
+    start-stop-daemon --test --start --quiet --pidfile $PIDFILE \
+        --exec $DAEMON > /dev/null \
+        || return 1
+    # Start it if not
+    start-stop-daemon --start --quiet --pidfile $PIDFILE \
+        --exec $DAEMON -- $DAEMON_ARGS \
+        || return 2
+    # Add code here, if the process need to be ready to handle
+    # request form service that depend on it. At last resort,
+    # sleep some time.
+    sleep 1s
+}
+
+#
+# Function that stop the dameon
+#
+do_stop() {
+    # Return value
+    # 0 if daemon has been stopped
+    # 1 if daemon was already stopped
+    # 2 if daemon could not be stop
+    # other if a failure occured
+    ###
+    # When nsca exits, clean lock file.
+    start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile $PIDFILE --name $NAME
+    RETVAL="$?"
+    # If process was already stop. Nothing to do. Exit with 1
+    [ "$RETVAL" = 1 ] && return 1
+    # If process could not be stop. Exit with 2
+    [ "$RETVAL" = 2 ] && return 2
+    # If the daemon is only run from initscript
+    # and forks, wait for children to finish.
+    # If this two condition are not satisfied the add code
+    # that waits for the process to drop all resources that
+    # could be needed by services started subsequently.
+    # At a last resort, sleep for some time.
+    start-stop-daemon --stop --quiet --oknodo --retry=0/30/KILL/5 --pidfile $PIDFILE --exec $DAEMON
+    [ "$?" = 2 ] && return 2
+    # Many daemon do not delete their pidfiles when they exit
+    rm -f $PIDFILE
+    return "$RETVAL"
+}
+
+#
+# Function that sends a SIGHUP to the daemon
+#
+do_reload()
+{
+    #
+    # A basic reload function. Not used.
+    start-stop-daemon --stop --quiet --signal 1 --pidfile $PIDFILE --name $NAME
+    return 0
+}
+
+case "$1" in
+ start)
+    [ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC" "$NAME"
+    do_start
+    case "$?" in
+        0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+        2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+        *) log_end_msg 1 ;; # Failed to start. Fatal
+    esac
+    ;;
+ stop)
+    [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC" "$NAME"
+    do_stop
+    case "$?" in
+        0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+        2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+        *) log_end_msg 1 ;; # Failed to stop. Fatal
+    esac
+    ;;
+ #reload|force-reload)
+ #    #
+ #    # If do_reload() is not implemented then leave this comment out
+ #    # and leave "force-reload" as an alias for "restart".
+ #    #
+ #    log_daemon_msg "Reloading $DESC" "$NAME"
+ #    do_reload
+ #    # Note : the basic do_reload always return 0
+ #    log_end_msg "$?"
+ #    ;;
+ restart|force-reload)
+    #
+    # If the "reload" option is implemented then remove
+    # the "force-reload" alias.
+    log_daemon_msg "Restarting $DESC" "$NAME"
+    do_stop
+    case "$?" in
+     0|1)
+        do_start
+        case "$?" in
+         0) log_end_msg 0 ;;
+         1) log_end_msg 1 ;; # Old process still running
+         *) log_end_msg 1 ;; # Failed to start
+        esac
+        ;;
+     *)
+        # Failed to stop
+        log_end_msg 1
+        ;;
+    esac
+    ;;
+ status)
+    log_daemon_msg "Checking status of $DESC" "$NAME"
+    status_of_proc -p $PIDFILE "$DAEMON" "$NAME"
+    log_end_msg "$?"
+    exit $?
+    ;;
+ *)
+    # echo "Usage: $SCRIPTNAME {start|stop|restart|reload|force-reload|status}" >&2
+    echo "Usage: $SCRIPTNAME {start|stop|restart|force-reload|status}" >&2
+    exit 3
+    ;;
+esac
+
+# ":" = "exit 0"
+:
