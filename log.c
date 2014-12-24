@@ -91,7 +91,9 @@ void log_printf(int level, const char *fmt, ...)
     }
     else
     {
+        va_start(args, fmt);
         vsyslog(LOG_MAKEPRI(LOG_LOCAL1, level), fmt, args);
+        va_end(args);
     }
 }
 

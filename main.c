@@ -31,6 +31,13 @@ int remote_port = 0;
 char *remote_host = NULL;
 int local_port = 0;
 
+/* Whether to daemonize/fork after startup */
+int daemonize = 0;
+/* Path to the pidfile */
+char *pidfile = NULL;
+/* Username to which we suid() in daemon mode */
+char *daemon_username = NULL;
+
 fd_set master_server_fds;
 
 /* We keep two hash tables: one indexed by sockfd and another by "connection id" */
@@ -768,6 +775,142 @@ int do_server_loop()
     }
 }
 
+/* Signal handler used when daemonizing */
+static void child_handler(int signum)
+{
+    switch(signum) {
+        case SIGALRM: exit(1); break;
+        case SIGUSR1: exit(0); break;
+        case SIGCHLD: exit(1); break;
+    }
+}
+
+/* 
+ * Daemonize the process if -D is set
+ * Optionally drop privileges and create a lock file
+ */
+void do_daemonize()
+{
+    pid_t pid, sid, parent;
+    FILE *pidf = NULL;
+
+    /* already a daemon */
+    if (getppid() == 1) 
+    {
+        return;
+    }
+
+    /* Drop user if there is one, and we were run as root */
+    if (daemon_username && (getuid() == 0 || geteuid() == 0)) 
+    {
+        struct passwd *pw = getpwnam(daemon_username);
+
+        if(pw) 
+        {
+            log_printf(L_DEBUG, "Setuid to user %s", daemon_username);
+            setuid(pw->pw_uid);
+        }
+        else
+        {
+            char *tmp;
+            int uid = 0;
+
+            uid = strtol(daemon_username, &tmp, 10);
+            if(uid)
+            {
+                setuid(uid);
+                log_printf(L_DEBUG, "Setuid to user ID %ld", (long)uid);
+            }
+            else
+            {
+                log_printf(L_DEBUG, "Could not setuid to user %s - no pwnam (static build?) or invalid numeric UID", daemon_username);
+            }
+        }
+    }
+
+    /* Trap signals that we expect to recieve */
+    signal(SIGCHLD,child_handler);
+    signal(SIGUSR1,child_handler);
+    signal(SIGALRM,child_handler);
+
+    /* Fork off the parent process */
+    pid = fork();
+    if (pid < 0) 
+    {
+        log_printf(L_ERROR, "Unable to fork daemon, code=%d (%s)",
+                errno, strerror(errno));
+        exit(1);
+    }
+    /* If we got a good PID, then we can exit the parent process. */
+    if (pid > 0) 
+    {
+        /* Wait for confirmation from the child via SIGTERM or SIGCHLD, or
+           for two seconds to elapse (SIGALRM).  pause() should not return. */
+        alarm(2);
+        pause();
+
+        exit(1);
+    }
+
+    /* At this point we are executing as the child process */
+    parent = getppid();
+
+    /* Cancel certain signals */
+    signal(SIGCHLD,SIG_DFL); /* A child process dies */
+    signal(SIGTSTP,SIG_IGN); /* Various TTY signals */
+    signal(SIGTTOU,SIG_IGN);
+    signal(SIGTTIN,SIG_IGN);
+    signal(SIGHUP, SIG_IGN); /* Ignore hangup signal */
+    signal(SIGTERM,SIG_DFL); /* Die on SIGTERM */
+
+    /* Change the file mode mask */
+    umask(S_IWGRP | S_IWOTH);
+
+    /* Reinitialize the syslog connection */
+    log_init();
+
+    /* Create a new SID for the child process */
+    sid = setsid();
+    if (sid < 0) 
+    {
+        log_printf(L_ERROR, "unable to create a new session, code %d (%s)",
+                errno, strerror(errno));
+        exit(1);
+    }
+
+    /* Change the current working directory.  This prevents the current
+       directory from being locked; hence not being able to remove it. */
+    if ((chdir("/")) < 0) 
+    {
+        log_printf(L_ERROR, "Unable to change directory to %s, code %d (%s)",
+                "/", errno, strerror(errno) );
+        exit(1);
+    }
+
+    /* Redirect standard files to /dev/null */
+    freopen( "/dev/null", "r", stdin);
+    freopen( "/dev/null", "w", stdout);
+    freopen( "/dev/null", "w", stderr);
+
+    /* Create the pid file as the new user */
+    if (pidfile && pidfile[0]) 
+    {
+        pidf = fopen(pidfile, "w");
+        if (!pidf) 
+        {
+            log_printf(L_ERROR, "Unable to create PID file %s, code=%d (%s)",
+                    pidfile, errno, strerror(errno));
+            exit(1);
+        }
+        fprintf(pidf, "%ld", (long)getpid());
+        fclose(pidf);
+    }
+
+
+    /* Tell the parent process that we are A-okay */
+    kill( parent, SIGUSR1 );    
+}
+
 void help()
 {
     fprintf(stderr, "tuntox - Forward ports over the Tox protocol\n");
@@ -780,6 +923,9 @@ void help()
     fprintf(stderr, "-d - debug mode\n");
     fprintf(stderr, "-q - quiet mode\n");
     fprintf(stderr, "-S - send output to syslog instead of stderr\n");
+    fprintf(stderr, "-D - daemonize (fork) and exit (implies -S)\n");
+    fprintf(stderr, "-F <path> - create a PID file named <path>\n");
+    fprintf(stderr, "-U <username|userid> - drop privileges to <username> before forking. Use numeric <userid> in static builds.\n");
     fprintf(stderr, "-h - this help message\n");
 }
 
@@ -791,7 +937,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:P:dqhS")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:P:dqhSF:DU:")) != -1)
     {
         switch(oc)
         {
@@ -858,6 +1004,16 @@ int main(int argc, char *argv[])
             case 'S':
                 use_syslog = 1;
                 break;
+            case 'D':
+                daemonize = 1;
+                use_syslog = 1;
+                break;
+            case 'F':
+                pidfile = optarg;
+                break;
+            case 'U':
+                daemon_username = optarg;
+                break;
             case '?':
             case 'h':
             default:
@@ -867,10 +1023,15 @@ int main(int argc, char *argv[])
         }
     }
 
-	if(!client_mode && min_log_level == L_UNSET)
-	{
-		min_log_level = L_INFO;
-	}
+    if(!client_mode && min_log_level == L_UNSET)
+    {
+            min_log_level = L_INFO;
+    }
+
+    if(daemonize)
+    {
+        do_daemonize();
+    }
 
     on_exit(cleanup, NULL);
 
