@@ -23,3 +23,6 @@ tuntox: $(OBJECTS) $(INCLUDES)
 
 cscope.out:
 	cscope -bv ./*.[ch] 
+
+clean:
+	rm -rf *.o tuntox gitversion.h
