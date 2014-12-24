@@ -483,7 +483,7 @@ int handle_frame(protocol_frame *frame)
  * It checks for basic inconsistiencies and allocates the
  * protocol_frame structure.
  */
-int parse_lossless_packet(void *sender_uc, const uint8_t *data, uint32_t len)
+int parse_lossless_packet(Tox *tox, int32_t friendnumber, const uint8_t *data, uint32_t len, void *sender_uc)
 {
     protocol_frame *frame = NULL;
 
@@ -859,6 +859,11 @@ int main(int argc, char *argv[])
         }
     }
 
+	if(!client_mode && min_log_level == L_UNSET)
+	{
+		min_log_level = L_INFO;
+	}
+
     on_exit(cleanup, NULL);
 
     print_version();
@@ -904,10 +909,6 @@ int main(int argc, char *argv[])
     }
     else
     {
-        if(min_log_level == L_UNSET)
-        {
-            min_log_level = L_INFO;
-        }
         /* Connect to the forwarded service */
 //        client_socket = get_client_socket();
         if(!load_save(tox))

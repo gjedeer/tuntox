@@ -85,7 +85,7 @@ extern int local_port;
 extern int select_nfds;
 extern tunnel *by_id;
 
-int parse_lossless_packet(void *sender_uc, const uint8_t *data, uint32_t len);
+int parse_lossless_packet(Tox *tox, int32_t friendnumber, const uint8_t *data, uint32_t len, void *sender_uc);
 tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber);
 void tunnel_delete(tunnel *t);
 
