@@ -346,7 +346,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
 
     tunnel_id = get_random_tunnel_id();
     log_printf(L_DEBUG, "Tunnel ID: %d\n", tunnel_id);
-    /* TODO make connection */
+
     sockfd = get_client_socket(hostname, port);
     if(sockfd > 0)
     {
@@ -1061,7 +1061,6 @@ int main(int argc, char *argv[])
 
     do_bootstrap(tox);
 
-    /* TODO use proper argparse */
     if(client_mode)
     {
         tox_get_address(tox, tox_id);
@@ -1078,8 +1077,6 @@ int main(int argc, char *argv[])
     }
     else
     {
-        /* Connect to the forwarded service */
-//        client_socket = get_client_socket();
         if(!load_save(tox))
         {
             /* Write generated ID if one is not already present */
