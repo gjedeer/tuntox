@@ -490,7 +490,7 @@ int handle_frame(protocol_frame *frame)
  * It checks for basic inconsistiencies and allocates the
  * protocol_frame structure.
  */
-int parse_lossless_packet(Tox *tox, int32_t friendnumber, const uint8_t *data, uint32_t len, void *sender_uc)
+int parse_lossless_packet(Tox *tox, int32_t friendnumber, const uint8_t *data, uint32_t len, void *tmp)
 {
     protocol_frame *frame = NULL;
 
@@ -525,7 +525,7 @@ int parse_lossless_packet(Tox *tox, int32_t friendnumber, const uint8_t *data, u
     frame->connid =                     INT16_AT(data, 4);
     frame->data_length =                INT16_AT(data, 6);
     frame->data = (uint8_t *)(data + PROTOCOL_BUFFER_OFFSET);
-    frame->friendnumber = *((uint32_t*)sender_uc);
+    frame->friendnumber =               friendnumber;
     log_printf(L_DEBUG, "Got protocol frame magic 0x%x type 0x%x from friend %d\n", frame->magic, frame->packet_type, frame->friendnumber);
 
     if(len < frame->data_length + PROTOCOL_BUFFER_OFFSET)
@@ -654,7 +654,6 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *d
 {
     unsigned char tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2 + 1];
     int32_t friendnumber;
-    int32_t *friendnumber_ptr = NULL;
 
     log_printf(L_DEBUG, "Got friend request\n");
 
@@ -664,17 +663,7 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *d
     id_to_string(tox_printable_id, public_key);
     log_printf(L_INFO, "Accepted friend request from %s as %d\n", tox_printable_id, friendnumber);
 
-    /* TODO: this is not freed right now, we're leaking 4 bytes per contact (OMG!) */
-    friendnumber_ptr = malloc(sizeof(int32_t));
-    if(!friendnumber_ptr)
-    {
-        log_printf(L_ERROR, "Could not allocate memory for friendnumber_ptr\n");
-        return;
-    }
-
-    *friendnumber_ptr = friendnumber;
-
-    tox_lossless_packet_registerhandler(tox, friendnumber, (PROTOCOL_MAGIC_V1)>>8, parse_lossless_packet, (void*)friendnumber_ptr);
+    tox_lossless_packet_registerhandler(tox, friendnumber, (PROTOCOL_MAGIC_V1)>>8, parse_lossless_packet, NULL);
 }
 
 void cleanup(int status, void *tmp)
