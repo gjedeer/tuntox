@@ -50,6 +50,8 @@ Magic, port 2222 on your localhost is now the SSH server on the machine which ru
 
 The -L switch works (almost) the same way it does in SSH. For the uninitiated, -L A:B:C means "forward port C on ip B to port A on localhost". Unlike SSH, you can't use hostnames for B (unless you link the binary dynamically).
 
+Fun stuff: [VPN over Tox](VPN.md)
+
 ## Security / threat model
 
 The Tuntox server generates a new Tox ID on every startup, or saves its private key in a file. Anyone who wants to connect to this server needs its Tox ID, which consists of the publicly-known pubkey and a secret 32-bit "antispam" value. Anyone with access to the full Tox ID is automatically accepted with no further authorization and can forward ports (or exploit buffer overflows :).
