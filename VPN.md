@@ -2,7 +2,7 @@
 
 Socat is a powerful tool which can work together with Tuntox.
 
-On the server (where tuntox is already running:
+On the server (where tuntox is already running):
 
     socat -d -d 'TCP-LISTEN:9876' 'TUN:10.20.30.41/24,up'
 
