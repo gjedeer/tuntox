@@ -89,6 +89,14 @@ int parse_local_port_forward(char *string, int *local_port, char **hostname, int
     char *lport;
     char *host;
     char *rport;
+
+    /* First replace all @ with :, ':' is forbidden in some environments */
+    char *p = string;
+    while(*p) 
+    { 
+        if(*p == '@') *p = ':';
+        p++;
+    }
     
     lport = strtok(string, ":");
     host = strtok(NULL, ":");
@@ -112,6 +120,14 @@ int parse_pipe_port_forward(char *string, char **hostname, int *remote_port)
 {
     char *host;
     char *rport;
+
+    /* First replace all @ with :, ':' is forbidden in some environments */
+    char *p = string;
+    while(*p) 
+    { 
+        if(*p == '@') *p = ':';
+        p++;
+    }
     
     host = strtok(string, ":");
     rport = strtok(NULL, ":");
