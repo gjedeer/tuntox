@@ -1,4 +1,4 @@
-h2. How to make a point-to-point VPN
+## How to make a point-to-point VPN
 
 Socat is a powerful tool which can work together with Tuntox.
 
@@ -20,13 +20,14 @@ Viola, you have a point-to-point VPN. On client:
     64 bytes from 10.20.30.41: icmp_seq=4 ttl=64 time=90.8 ms
     64 bytes from 10.20.30.41: icmp_seq=5 ttl=64 time=50.7 ms
 
-h3. Full madness mode: tunnelling VPN over SSH over Tox
+## Full madness mode: tunnelling VPN over SSH over Tox
 
 No need to log in run and run socat on the server.
 
 Also: inefficient, insecure (requires PermitRootLogin yes on server).
 
 On the client:
+
     socat -d -d TUN:10.20.30.40/24,up 'SYSTEM:ssh root@localhost -o ProxyCommand=\"./tuntox -P "127.0.0.1:22" -d -i 86e70ffe9f835b12667d296f2df9c307ba1aff06\" socat -d -d  - "TUN:10.20.30.41/24,up"'
 
     # ping 10.20.30.41
