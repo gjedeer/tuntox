@@ -696,9 +696,15 @@ int do_server_loop()
     while(1)
     {
         int tmp_isconnected = 0;
+        uint32_t tox_do_interval_ms;
 
 	/* Let tox do its stuff */
 	tox_do(tox);
+
+        /* Get the desired sleep time, used in select() later */
+        tox_do_interval_ms = tox_do_interval(tox);
+        tv.tv_usec = (tox_do_interval_ms % 1000) * 1000;
+        tv.tv_sec = tox_do_interval_ms / 1000;
 
         /* Check change in connection state */
         tmp_isconnected = tox_isconnected(tox);
