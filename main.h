@@ -86,6 +86,9 @@ extern char *remote_tox_id;
 extern int remote_port;
 extern char *remote_host;
 extern int local_port;
+/* Shared secret used for authentication */
+extern int use_shared_secret;
+extern char shared_secret[TOX_MAX_FRIEND_REQUEST_LENGTH];
 
 extern int select_nfds;
 extern tunnel *by_id;

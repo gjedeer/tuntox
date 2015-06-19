@@ -40,7 +40,8 @@ char *pidfile = NULL;
 char *daemon_username = NULL;
 
 /* Shared secret used for authentication */
-char *shared_secret = NULL;
+int use_shared_secret = 0;
+char shared_secret[TOX_MAX_FRIEND_REQUEST_LENGTH];
 
 fd_set master_server_fds;
 
@@ -676,6 +677,28 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *m
 
     log_printf(L_DEBUG, "Got friend request\n");
 
+    if(use_shared_secret)
+    {
+        if(!message)
+        {
+            log_printf(L_WARNING, "Friend sent NULL message - not accepting request");
+            return;
+        }
+
+        if(message[length - 1] != '\0')
+        {
+            log_printf(L_WARNING, "Message of size %u is not NULL terminated - not accepting request", length);
+            return;
+        }
+
+        if(strncmp(message, shared_secret, TOX_MAX_FRIEND_REQUEST_LENGTH-1))
+        {
+            log_printf(L_WARNING, "Received shared secret \"%s\" differs from our shared secret - not accepting request", message);
+            return;
+        }
+    }
+    
+
     friendnumber = tox_friend_add_norequest(tox, public_key, &friend_add_error);
     if(friend_add_error != TOX_ERR_FRIEND_ADD_OK)
     {
@@ -948,7 +971,7 @@ void help()
     fprintf(stderr, "-P <remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to stdin/stdout (SSH ProxyCommand mode)\n");
     fprintf(stderr, "-p - ping the server from -i and exit\n");
     fprintf(stderr, "-C <dir> - save private key in <dir> instead of /etc/tuntox in server mode\n");
-    fprintf(stderr, "-s <secret> - shared secret used for connection authentication\n");
+    fprintf(stderr, "-s <secret> - shared secret used for connection authentication (max %u characters)\n", TOX_MAX_FRIEND_REQUEST_LENGTH-1);
     fprintf(stderr, "-d - debug mode\n");
     fprintf(stderr, "-q - quiet mode\n");
     fprintf(stderr, "-S - send output to syslog instead of stderr\n");
@@ -969,7 +992,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:P:dqhSF:DU:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:s:P:dqhSF:DU:")) != -1)
     {
         switch(oc)
         {
@@ -1026,6 +1049,12 @@ int main(int argc, char *argv[])
                     config_path[optarg_len] = '/';
                     config_path[optarg_len + 1] = '\0';
                 }
+                break;
+            case 's':
+                /* Shared secret */
+                use_shared_secret = 1;
+                memset(shared_secret, 0, TOX_MAX_FRIEND_REQUEST_LENGTH);
+                strncpy(shared_secret, optarg, TOX_MAX_FRIEND_REQUEST_LENGTH-1);
                 break;
             case 'd':
                 min_log_level = L_DEBUG;
@@ -1129,6 +1158,11 @@ int main(int argc, char *argv[])
     else
     {
         write_save(tox);
+
+        if(!use_shared_secret)
+        {
+            log_printf(L_WARNING, "Shared secret authentication is not used - skilled attackers may connect to your tuntox server");
+        }
 
         tox_self_get_address(tox, tox_id);
         memset(tox_printable_id, '\0', sizeof(tox_printable_id));

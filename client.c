@@ -1,3 +1,4 @@
+#include <time.h>
 #include "log.h"
 #include "main.h"
 #include "client.h"
@@ -220,6 +221,7 @@ int do_client_loop(char *tox_id_str)
     uint32_t friendnumber;
     struct timeval tv;
     fd_set fds;
+    static time_t invitation_sent_time = 0;
     TOX_ERR_FRIEND_QUERY friend_query_error;
     TOX_ERR_FRIEND_CUSTOM_PACKET custom_packet_error;
 
@@ -260,9 +262,17 @@ int do_client_loop(char *tox_id_str)
                 break;
             case CLIENT_STATE_CONNECTED:
                 {
-                    uint8_t data[] = "Hi, fellow tuntox instance!";
+                    uint8_t* data = "Hi, fellow tuntox instance!";
                     uint16_t length = sizeof(data);
                     TOX_ERR_FRIEND_ADD add_error;
+
+                    if(use_shared_secret)
+                    {
+                        data = shared_secret;
+                        data[TOX_MAX_FRIEND_REQUEST_LENGTH-1] = '\0';
+                        length = strlen(data)+1;
+                        log_printf(L_DEBUG, "Sent shared secret of length %u\n", length);
+                    }
 
                     log_printf(L_INFO, "Connected. Sending friend request.\n");
 
@@ -274,12 +284,15 @@ int do_client_loop(char *tox_id_str)
                             &add_error
                     );
 
-                    if(friendnumber == UINT32_MAX)
+                    if(add_error != TOX_ERR_FRIEND_ADD_OK)
                     {
-                        log_printf(L_ERROR, "Error %u adding friend %s\n", add_error, tox_id);
+                        unsigned char tox_printable_id[TOX_ADDRESS_SIZE * 2 + 1];
+                        id_to_string(tox_printable_id, tox_id);
+                        log_printf(L_ERROR, "Error %u adding friend %s\n", add_error, tox_printable_id);
                         exit(-1);
                     }
 
+                    invitation_sent_time = time(NULL);
                     state = CLIENT_STATE_SENTREQUEST;
                     log_printf(L_INFO, "Waiting for friend to accept us...\n");
                 }
@@ -302,6 +315,11 @@ int do_client_loop(char *tox_id_str)
                         }
                         else
                         {
+                            if(0 && (time(NULL) - invitation_sent_time > 60))
+                            {
+                                log_printf(L_INFO, "Sending another friend request...");
+                                state = CLIENT_STATE_CONNECTED;
+                            }
                         }
                     }
                     break;

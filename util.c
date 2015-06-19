@@ -191,7 +191,7 @@ const char *readable_connection_status(TOX_CONNECTION status)
         case TOX_CONNECTION_TCP:
             return "A TCP connection has been established (via TCP relay)";
         case TOX_CONNECTION_UDP:
-            return "A UDP connection has been established with DHT nodes";
+            return "An UDP connection has been established";
         default:
             return "Unknown connection status";
     }
