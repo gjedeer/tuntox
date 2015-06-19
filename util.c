@@ -44,13 +44,13 @@ void to_hex(char_t *a, const char_t *p, int size)
 /* From utox/util.c */
 void id_to_string(char_t *dest, const char_t *src)
 {
-    to_hex(dest, src, TOX_FRIEND_ADDRESS_SIZE);
+    to_hex(dest, src, TOX_ADDRESS_SIZE);
 }
 
 /* From utox/util.c */
 int string_to_id(char_t *w, char_t *a)
 {
-    char_t *end = w + TOX_FRIEND_ADDRESS_SIZE;
+    char_t *end = w + TOX_ADDRESS_SIZE;
     while(w != end) {
         char_t c, v;
 
@@ -180,4 +180,19 @@ void* file_raw(char *path, uint32_t *size)
         *size = len;
     }
     return data;
+}
+
+const char *readable_connection_status(TOX_CONNECTION status)
+{
+    switch(status)
+    {
+        case TOX_CONNECTION_NONE:
+            return "There is no connection";
+        case TOX_CONNECTION_TCP:
+            return "A TCP connection has been established (via TCP relay)";
+        case TOX_CONNECTION_UDP:
+            return "A UDP connection has been established with DHT nodes";
+        default:
+            return "Unknown connection status";
+    }
 }

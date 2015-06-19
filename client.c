@@ -216,13 +216,17 @@ int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
 int do_client_loop(char *tox_id_str)
 {
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
-    unsigned char tox_id[TOX_FRIEND_ADDRESS_SIZE];
+    unsigned char tox_id[TOX_ADDRESS_SIZE];
     uint32_t friendnumber;
     struct timeval tv;
     fd_set fds;
+    TOX_ERR_FRIEND_QUERY friend_query_error;
+    TOX_ERR_FRIEND_CUSTOM_PACKET custom_packet_error;
 
     client_tunnel.sockfd = 0;
     FD_ZERO(&client_master_fdset);
+
+    tox_callback_friend_lossless_packet(tox, parse_lossless_packet, NULL);
 
     if(!string_to_id(tox_id, tox_id_str))
     {
@@ -241,7 +245,7 @@ int do_client_loop(char *tox_id_str)
     while(1)
     {
 	/* Let tox do its stuff */
-	tox_do(tox);
+	tox_iterate(tox);
 
         switch(state)
         {
@@ -249,7 +253,7 @@ int do_client_loop(char *tox_id_str)
              * Send friend request
              */
             case CLIENT_STATE_INITIAL:
-                if(tox_isconnected(tox))
+                if(connection_status != TOX_CONNECTION_NONE)
                 {
                     state = CLIENT_STATE_CONNECTED;
                 }
@@ -258,37 +262,50 @@ int do_client_loop(char *tox_id_str)
                 {
                     uint8_t data[] = "Hi, fellow tuntox instance!";
                     uint16_t length = sizeof(data);
+                    TOX_ERR_FRIEND_ADD add_error;
 
                     log_printf(L_INFO, "Connected. Sending friend request.\n");
 
-                    friendnumber = tox_add_friend(
+                    friendnumber = tox_friend_add(
                             tox,
                             tox_id,
                             data,
-                            length
+                            length,
+                            &add_error
                     );
 
-                    if(friendnumber < 0)
+                    if(friendnumber == UINT32_MAX)
                     {
-                        log_printf(L_ERROR, "Error %d adding friend %s\n", friendnumber, tox_id);
+                        log_printf(L_ERROR, "Error %u adding friend %s\n", add_error, tox_id);
                         exit(-1);
                     }
 
-                    tox_lossless_packet_registerhandler(tox, friendnumber, (PROTOCOL_MAGIC_V1)>>8, parse_lossless_packet, (void*)&friendnumber);
                     state = CLIENT_STATE_SENTREQUEST;
                     log_printf(L_INFO, "Waiting for friend to accept us...\n");
                 }
                 break;
             case CLIENT_STATE_SENTREQUEST:
-                if(tox_get_friend_connection_status(tox, friendnumber) == 1)
                 {
-                    log_printf(L_INFO, "Friend request accepted!\n");
-                    state = CLIENT_STATE_REQUEST_ACCEPTED;
+                    TOX_CONNECTION friend_connection_status;
+                    friend_connection_status = tox_friend_get_connection_status(tox, friendnumber, &friend_query_error);
+                    if(friend_query_error != TOX_ERR_FRIEND_QUERY_OK)
+                    {
+                        log_printf(L_DEBUG, "tox_friend_get_connection_status: error %u", friend_query_error);
+                    }
+                    else
+                    {
+                        if(friend_connection_status != TOX_CONNECTION_NONE)
+                        {
+                            const char* status = readable_connection_status(friend_connection_status);
+                            log_printf(L_INFO, "Friend request accepted (%s)!\n", status);
+                            state = CLIENT_STATE_REQUEST_ACCEPTED;
+                        }
+                        else
+                        {
+                        }
+                    }
+                    break;
                 }
-                else
-                {
-                }
-                break;
             case CLIENT_STATE_REQUEST_ACCEPTED:
                 if(ping_mode)
                 {
@@ -312,14 +329,22 @@ int do_client_loop(char *tox_id_str)
                     };
 
                     clock_gettime(CLOCK_MONOTONIC, &ping_sent_time);
-                    tox_send_lossless_packet(
+                    tox_friend_send_lossless_packet(
                             tox,
                             friendnumber,
                             data,
-                            sizeof(data)
+                            sizeof(data),
+                            &custom_packet_error
                     );
                 }
-                state = CLIENT_STATE_PING_SENT;
+                if(custom_packet_error == TOX_ERR_FRIEND_CUSTOM_PACKET_OK)
+                {
+                    state = CLIENT_STATE_PING_SENT;
+                }
+                else
+                {
+                    log_printf(L_WARNING, "When sending ping packet: %u", custom_packet_error);
+                }
                 break;
             case CLIENT_STATE_PING_SENT:
                 /* Just sit there and wait for pong */
@@ -452,7 +477,7 @@ int do_client_loop(char *tox_id_str)
                 break;
         }
 
-        usleep(tox_do_interval(tox) * 1000);
+        usleep(tox_iteration_interval(tox) * 1000);
     }
 }
 

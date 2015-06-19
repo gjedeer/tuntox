@@ -3,9 +3,10 @@
 #include "tox_bootstrap.h"
 #include "log.h"
 
-static Tox_Options tox_options;
+static struct Tox_Options tox_options;
 Tox *tox;
 int client_socket = 0;
+TOX_CONNECTION connection_status = TOX_CONNECTION_NONE;
 
 /** CONFIGURATION OPTIONS **/
 /* Whether we're a client */
@@ -123,7 +124,8 @@ static void do_bootstrap(Tox *tox)
     int i = 0;
     while(i < 4) {
         struct bootstrap_node *d = &bootstrap_nodes[j % countof(bootstrap_nodes)];
-        tox_bootstrap_from_address(tox, d->address, d->port, d->key);
+        tox_bootstrap(tox, d->address, d->port, d->key, 0);
+        tox_add_tcp_relay(tox, d->address, d->port, d->key, 0);
         i++;
         j++;
     }
@@ -135,11 +137,16 @@ void set_tox_username(Tox *tox)
     unsigned char hostname[1024];
     struct addrinfo hints, *info, *p;
     int gai_result;
+    TOX_ERR_SET_INFO error;
 
     gethostname(hostname, 1024);
     hostname[1023] = '\0';
 
-    tox_set_name(tox, hostname, strlen(hostname));
+    tox_self_set_name(tox, hostname, strlen(hostname), &error);
+    if(error != TOX_ERR_SET_INFO_OK)
+    {
+        log_printf(L_DEBUG, "tox_self_set_name() failed (%u)", error);
+    }
 }
 
 /* Get sockaddr, IPv4 or IPv6 */
@@ -233,6 +240,7 @@ int send_frame(protocol_frame *frame, uint8_t *data)
     int rv = -1;
     int try = 0;
     int i;
+    TOX_ERR_FRIEND_CUSTOM_PACKET custom_packet_error;
 
     data[0] = PROTOCOL_MAGIC_HIGH;
     data[1] = PROTOCOL_MAGIC_LOW;
@@ -249,21 +257,29 @@ int send_frame(protocol_frame *frame, uint8_t *data)
 
         try++;
 
-        rv = tox_send_lossless_packet(
+        rv = tox_friend_send_lossless_packet(
                 tox,
                 frame->friendnumber,
                 data,
-                frame->data_length + PROTOCOL_BUFFER_OFFSET
+                frame->data_length + PROTOCOL_BUFFER_OFFSET,
+                &custom_packet_error
         );
 
-        if(rv < 0)
+        if(custom_packet_error == TOX_ERR_FRIEND_CUSTOM_PACKET_OK)
         {
-            /* If this branch is ran, most likely we've hit congestion control. */
-            log_printf(L_DEBUG, "[%d] Failed to send packet to friend %d\n", i, frame->friendnumber);
+            break;
         }
         else
         {
-            break;
+            /* If this branch is ran, most likely we've hit congestion control. */
+            if(custom_packet_error == TOX_ERR_FRIEND_CUSTOM_PACKET_SENDQ)
+            {
+                log_printf(L_DEBUG, "[%d] Failed to send packet to friend %d (Packet queue is full)\n", i, frame->friendnumber, custom_packet_error);
+            }
+            else
+            {
+                log_printf(L_DEBUG, "[%d] Failed to send packet to friend %d (err: %u)\n", i, frame->friendnumber, custom_packet_error);
+            }
         }
 
         if(i == 0) i = 2;
@@ -271,7 +287,7 @@ int send_frame(protocol_frame *frame, uint8_t *data)
 
         for(j = 0; j < i; j++)
         {
-            tox_do(tox);
+            tox_iterate(tox);
             usleep(j * 10000);
         }
     }
@@ -490,33 +506,33 @@ int handle_frame(protocol_frame *frame)
  * It checks for basic inconsistiencies and allocates the
  * protocol_frame structure.
  */
-int parse_lossless_packet(Tox *tox, int32_t friendnumber, const uint8_t *data, uint32_t len, void *tmp)
+void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp)
 {
     protocol_frame *frame = NULL;
 
     if(len < PROTOCOL_BUFFER_OFFSET)
     {
         log_printf(L_WARNING, "Received too short data frame - only %d bytes, at least %d expected\n", len, PROTOCOL_BUFFER_OFFSET);
-        return -1;
+        return;
     }
 
     if(!data)
     {
         log_printf(L_ERROR, "Got NULL pointer from toxcore - WTF?\n");
-        return -1;
+        return;
     }
 
     if(data[0] != PROTOCOL_MAGIC_HIGH || data[1] != PROTOCOL_MAGIC_LOW)
     {
         log_printf(L_WARNING, "Received data frame with invalid protocol magic number 0x%x%x\n", data[0], data[1]);
-        return -1;
+        return;
     }
 
     frame = calloc(1, sizeof(protocol_frame));
     if(!frame)
     {
         log_printf(L_ERROR, "Could not allocate memory for protocol_frame_t\n");
-        return -1;
+        return;
     }
 
     /* TODO check if friendnumber is the same in sender and connid tunnel*/
@@ -531,13 +547,13 @@ int parse_lossless_packet(Tox *tox, int32_t friendnumber, const uint8_t *data, u
     if(len < frame->data_length + PROTOCOL_BUFFER_OFFSET)
     {
         log_printf(L_WARNING, "Received frame too small (attempted buffer overflow?): %d bytes, excepted at least %d bytes\n", len, frame->data_length + PROTOCOL_BUFFER_OFFSET);
-        return -1;
+        return;
     }
 
     if(frame->data_length > (TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET))
     {
         log_printf(L_WARNING, "Declared data length too big (attempted buffer overflow?): %d bytes, excepted at most %d bytes\n", frame->data_length, (TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET));
-        return -1;
+        return;
     }
 
     handle_frame(frame);
@@ -582,9 +598,9 @@ static void write_save(Tox *tox)
     uint8_t path_tmp[512], path_real[512], *p;
     FILE *file;
 
-    size = tox_size(tox);
+    size = tox_get_savedata_size(tox);
     data = malloc(size);
-    tox_save(tox, data);
+    tox_get_savedata(tox, data);
 
     strncpy(path_real, config_path, sizeof(config_path));
 
@@ -621,7 +637,7 @@ static void write_save(Tox *tox)
 }
 
 /* Load tox identity from a file */
-static int load_save(Tox *tox)
+static size_t load_save(uint8_t **out_data)
 {
     void *data;
     uint32_t size;
@@ -639,9 +655,8 @@ static int load_save(Tox *tox)
 
     if(data)
     {
-        tox_load(tox, data, size);
-        free(data);
-        return 1;
+        *out_data = data;
+        return size;
     }
     else
     {
@@ -650,20 +665,33 @@ static int load_save(Tox *tox)
     }
 }
 
-void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *data, uint16_t length, void *userdata)
+void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *message, size_t length, void *userdata)
 {
-    unsigned char tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2 + 1];
+    unsigned char tox_printable_id[TOX_ADDRESS_SIZE * 2 + 1];
     int32_t friendnumber;
+    TOX_ERR_FRIEND_ADD friend_add_error;
 
     log_printf(L_DEBUG, "Got friend request\n");
 
-    friendnumber = tox_add_friend_norequest(tox, public_key);
+    friendnumber = tox_friend_add_norequest(tox, public_key, &friend_add_error);
+    if(friend_add_error != TOX_ERR_FRIEND_ADD_OK)
+    {
+        log_printf(L_WARNING, "Could not add friend: err %u", friend_add_error);
+        return;
+    }
 
     memset(tox_printable_id, '\0', sizeof(tox_printable_id));
     id_to_string(tox_printable_id, public_key);
     log_printf(L_INFO, "Accepted friend request from %s as %d\n", tox_printable_id, friendnumber);
+}
 
-    tox_lossless_packet_registerhandler(tox, friendnumber, (PROTOCOL_MAGIC_V1)>>8, parse_lossless_packet, NULL);
+/* Callback for tox_callback_self_connection_status() */
+void handle_connection_status_change(Tox *tox, TOX_CONNECTION p_connection_status, void *user_data)
+{
+    const char *status = NULL;
+    connection_status = p_connection_status;
+    status = readable_connection_status(connection_status);
+    log_printf(L_INFO, "Connection status changed: %s", status);
 }
 
 void cleanup(int status, void *tmp)
@@ -686,7 +714,9 @@ int do_server_loop()
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     tunnel *tun = NULL;
     tunnel *tmp = NULL;
-    int connected = 0;
+    TOX_CONNECTION connected = 0;
+
+    tox_callback_friend_lossless_packet(tox, parse_lossless_packet, NULL);
 
     tv.tv_sec = 0;
     tv.tv_usec = 20000;
@@ -695,19 +725,19 @@ int do_server_loop()
 
     while(1)
     {
-        int tmp_isconnected = 0;
+        TOX_CONNECTION tmp_isconnected = 0;
         uint32_t tox_do_interval_ms;
 
 	/* Let tox do its stuff */
-	tox_do(tox);
+	tox_iterate(tox);
 
         /* Get the desired sleep time, used in select() later */
-        tox_do_interval_ms = tox_do_interval(tox);
+        tox_do_interval_ms = tox_iteration_interval(tox);
         tv.tv_usec = (tox_do_interval_ms % 1000) * 1000;
         tv.tv_sec = tox_do_interval_ms / 1000;
 
         /* Check change in connection state */
-        tmp_isconnected = tox_isconnected(tox);
+        tmp_isconnected = connection_status;
         if(tmp_isconnected != connected)
         {
             connected = tmp_isconnected;
@@ -926,9 +956,12 @@ void help()
 
 int main(int argc, char *argv[])
 {
-    unsigned char tox_id[TOX_FRIEND_ADDRESS_SIZE];
-    unsigned char tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2 + 1];
+    unsigned char tox_id[TOX_ADDRESS_SIZE];
+    unsigned char tox_printable_id[TOX_ADDRESS_SIZE * 2 + 1];
+    TOX_ERR_NEW tox_new_err;
     int oc;
+    size_t save_size = 0;
+    uint8_t *save_data = NULL;
 
     log_init();
 
@@ -1033,34 +1066,53 @@ int main(int argc, char *argv[])
     print_version();
 
     /* Bootstrap tox */
-    tox_options.ipv6enabled = TOX_ENABLE_IPV6_DEFAULT;
-    tox_options.udp_disabled = 0;
-    tox_options.proxy_enabled = 0;
+    tox_options_default(&tox_options);
+    if(!client_mode)
+    {
+        uint8_t *save_data = NULL;
+        save_size = load_save(&save_data);
+        if(save_data && save_size)
+        {
+            tox_options.savedata_type = TOX_SAVEDATA_TYPE_TOX_SAVE;
+            tox_options.savedata_data = save_data;
+            tox_options.savedata_length = save_size;
+        }
+    }
 
-    tox = tox_new(&tox_options);
+    tox = tox_new(&tox_options, &tox_new_err);
     if(tox == NULL)
     {
-        log_printf(L_DEBUG, "tox_new() failed - trying without proxy\n");
-        if(!tox_options.proxy_enabled || (tox_options.proxy_enabled = 0, (tox = tox_new(&tox_options)) == NULL))
+        log_printf(L_DEBUG, "tox_new() failed (%u) - trying without proxy\n", tox_new_err);
+        if((tox_options.proxy_type != TOX_PROXY_TYPE_NONE) || (tox_options.proxy_type = TOX_PROXY_TYPE_NONE, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
         {
-            log_printf(L_DEBUG, "tox_new() failed - trying without IPv6\n");
-            if(!tox_options.ipv6enabled || (tox_options.ipv6enabled = 0, (tox = tox_new(&tox_options)) == NULL))
+            log_printf(L_DEBUG, "tox_new() failed (%u) - trying without IPv6\n", tox_new_err);
+            if(!tox_options.ipv6_enabled || (tox_options.ipv6_enabled = 0, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
             {
-                log_printf(L_ERROR, "tox_new() failed - exiting\n");
-                exit(1);
+                log_printf(L_DEBUG, "tox_new() failed (%u) - trying with Tor\n", tox_new_err);
+                if((tox_options.proxy_type = TOX_PROXY_TYPE_SOCKS5, tox_options.proxy_host="127.0.0.1", tox_options.proxy_port=9050, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
+                {
+                    log_printf(L_ERROR, "tox_new() failed (%u) - exiting\n", tox_new_err);
+                    exit(1);
+                }
             }
         }
     }
 
+    if(save_size && save_data)
+    {
+        free(save_data);
+    }
+
     set_tox_username(tox);
+    tox_callback_self_connection_status(tox, handle_connection_status_change, NULL);
 
     do_bootstrap(tox);
 
     if(client_mode)
     {
-        tox_get_address(tox, tox_id);
+        tox_self_get_address(tox, tox_id);
         id_to_string(tox_printable_id, tox_id);
-        tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2] = '\0';
+        tox_printable_id[TOX_ADDRESS_SIZE * 2] = '\0';
         log_printf(L_DEBUG, "Generated Tox ID: %s\n", tox_printable_id);
 
         if(!remote_tox_id)
@@ -1072,16 +1124,12 @@ int main(int argc, char *argv[])
     }
     else
     {
-        if(!load_save(tox))
-        {
-            /* Write generated ID if one is not already present */
-            write_save(tox);
-        }
+        write_save(tox);
 
-        tox_get_address(tox, tox_id);
+        tox_self_get_address(tox, tox_id);
         memset(tox_printable_id, '\0', sizeof(tox_printable_id));
         id_to_string(tox_printable_id, tox_id);
-        tox_printable_id[TOX_FRIEND_ADDRESS_SIZE * 2] = '\0';
+        tox_printable_id[TOX_ADDRESS_SIZE * 2] = '\0';
         log_printf(L_INFO, "Using Tox ID: %s\n", tox_printable_id);
 
         tox_callback_friend_request(tox, accept_friend_request, NULL);

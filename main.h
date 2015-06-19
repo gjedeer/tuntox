@@ -74,6 +74,8 @@ extern Tox *tox;
 extern int client_mode;
 /* Just send a ping and exit */
 extern int ping_mode;
+/* TOX_CONNECTION global variable */
+extern TOX_CONNECTION connection_status;
 /* Open a local port and forward it */
 extern int client_local_port_mode;
 /* Forward stdin/stdout to remote machine - SSH ProxyCommand mode */
@@ -88,7 +90,7 @@ extern int local_port;
 extern int select_nfds;
 extern tunnel *by_id;
 
-int parse_lossless_packet(Tox *tox, int32_t friendnumber, const uint8_t *data, uint32_t len, void *sender_uc);
+void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp);
 tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber);
 void tunnel_delete(tunnel *t);
 
