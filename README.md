@@ -54,7 +54,7 @@ Fun stuff: [VPN over Tox](VPN.md)
 
 ## Security / threat model
 
-**TUNTOX IS NOT SECURE WITHOUT THE -s SWITCH.** Supply -s yourpassword both on the server and the client, and you will be fine. This switch is introduced in 0.0.4, codename "Mr. Lahey's Got My Porno Tape!".
+**TUNTOX IS NOT SECURE WITHOUT THE -s SWITCH.** Supply *-s yourpassword* both on the server and the client, and you will be fine. This switch is introduced in 0.0.4, codename "Mr. Lahey's Got My Porno Tape!".
 
 The Tuntox server generates a new Tox ID on every startup, or saves its private key in a file. Anyone who wants to connect to this server needs its Tox ID, which consists of the publicly-known pubkey and a secret 32-bit "antispam" value. Then, the client sends a shared secret which is then compared to the secred supplied on server's command line. If they don't match, friend request is left unanswered.
 
