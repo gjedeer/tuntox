@@ -39,6 +39,9 @@ char *pidfile = NULL;
 /* Username to which we suid() in daemon mode */
 char *daemon_username = NULL;
 
+/* Shared secret used for authentication */
+char *shared_secret = NULL;
+
 fd_set master_server_fds;
 
 /* We keep two hash tables: one indexed by sockfd and another by "connection id" */
@@ -945,6 +948,7 @@ void help()
     fprintf(stderr, "-P <remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to stdin/stdout (SSH ProxyCommand mode)\n");
     fprintf(stderr, "-p - ping the server from -i and exit\n");
     fprintf(stderr, "-C <dir> - save private key in <dir> instead of /etc/tuntox in server mode\n");
+    fprintf(stderr, "-s <secret> - shared secret used for connection authentication\n");
     fprintf(stderr, "-d - debug mode\n");
     fprintf(stderr, "-q - quiet mode\n");
     fprintf(stderr, "-S - send output to syslog instead of stderr\n");
