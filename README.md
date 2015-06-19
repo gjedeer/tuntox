@@ -54,11 +54,13 @@ Fun stuff: [VPN over Tox](VPN.md)
 
 ## Security / threat model
 
-The Tuntox server generates a new Tox ID on every startup, or saves its private key in a file. Anyone who wants to connect to this server needs its Tox ID, which consists of the publicly-known pubkey and a secret 32-bit "antispam" value. Anyone with access to the full Tox ID is automatically accepted with no further authorization and can forward ports (or exploit buffer overflows :).
+**TUNTOX IS NOT SECURE WITHOUT THE -s SWITCH.** Supply -s yourpassword both on the server and the client, and you will be fine. This switch is introduced in 0.0.4, codename "Mr. Lahey's Got My Porno Tape!".
 
-Therefore, posession of the server's Tox ID should be considered equivalent to posession of an Unix account with SSH access.
+The Tuntox server generates a new Tox ID on every startup, or saves its private key in a file. Anyone who wants to connect to this server needs its Tox ID, which consists of the publicly-known pubkey and a secret 32-bit "antispam" value. Then, the client sends a shared secret which is then compared to the secred supplied on server's command line. If they don't match, friend request is left unanswered.
 
-Currently there are no measures for preventing brute force attacks against the 32-bit antispam value that the author is aware of. They may or may not be released by the libtoxcore team and are not in the scope of this tool.
+Therefore, posession of the server's Tox ID and a secret should be considered equivalent to posession of an Unix account with SSH access. Tuntox does not implement remote shell capability, but it is possible that it's exploitable.
+
+PSK authentication is optional - it's only enabled when -s switch is present on server side. PSK is sent as Tox friend request message - as far as the author understands libtoxcore code, it's encrypted using server's public EC key.
 
 Tuntox is piggybacking on the Tox protocol, which itself has not been audited by security researchers. Tox crypto has been implemented with libsodium (which is based on Bernstein's NaCl) and thus uses the ecliptic curve 25519 for key exchange and salsa20 for stream encryption. According to the author's best knowledge, libsodium makes it as hard as possible to get crypto wrong, but we don't know until Tox has been audited.
 
