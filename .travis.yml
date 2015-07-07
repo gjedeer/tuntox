@@ -51,8 +51,6 @@ before_script:
   - sudo apt-get install cscope
 
 script:
-  - pwd
-  - ls -l
   - cd tuntox
   - find .. -name Makefile
   - make
