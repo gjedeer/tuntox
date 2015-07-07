@@ -34,6 +34,7 @@ int handle_pong_frame(protocol_frame *rcvd_frame)
 //        state = CLIENT_STATE_PONG_RECEIVED;
         state = CLIENT_STATE_SEND_PING;
     }
+    return 0;
 }
 
 int local_bind()
