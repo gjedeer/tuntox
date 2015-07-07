@@ -222,6 +222,8 @@ int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
     }
     
     tunnel_delete(tun);
+
+    return 0;
 }
 
 /* Main loop for the client */

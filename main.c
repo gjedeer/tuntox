@@ -460,6 +460,8 @@ int handle_client_tcp_fin_frame(protocol_frame *rcvd_frame)
     }
     
     tunnel_delete(tun);
+
+    return 0;
 }
 
 /* This is a dispatcher for our encapsulated protocol */
