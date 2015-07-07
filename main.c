@@ -388,6 +388,8 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         log_printf(L_WARNING, "Could not connect to %s:%d\n", hostname, port);
         /* TODO send reject */
     }
+
+    free(hostname);
 }
 
 /* Handle a TCP frame received from client */
