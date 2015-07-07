@@ -394,6 +394,8 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
     }
 
     free(hostname);
+
+    return 0;
 }
 
 /* Handle a TCP frame received from client */
