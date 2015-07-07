@@ -228,7 +228,7 @@ int do_client_loop(char *tox_id_str)
 {
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     unsigned char tox_id[TOX_ADDRESS_SIZE];
-    uint32_t friendnumber;
+    uint32_t friendnumber = 0;
     struct timeval tv;
     fd_set fds;
     static time_t invitation_sent_time = 0;
