@@ -44,6 +44,7 @@ int local_bind()
     int yes = 1;
     int flags;
     int gai_status;
+    int setsockopt_status;
 
     snprintf(port, 6, "%d", local_port);
 
@@ -67,7 +68,14 @@ int local_bind()
         exit(1);
     }
 
-    setsockopt(bind_sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+    setsockopt_status = setsockopt(bind_sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+    if(setsockopt_status < 0)
+    {
+        log_printf(L_ERROR, "Could not set socket options: %s\n", 
+                explain_setsockopt(bind_sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)));
+        freeaddrinfo(res);
+        exit(1);
+    }
 
     /* Set O_NONBLOCK to make accept() non-blocking */
     if (-1 == (flags = fcntl(bind_sockfd, F_GETFL, 0)))
