@@ -94,6 +94,8 @@ int local_bind()
     }
 
     log_printf(L_DEBUG, "Bound to local port %d\n", local_port);
+
+    return 0;
 }
 
 /* Bind the client.sockfd to a tunnel */
