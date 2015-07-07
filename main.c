@@ -634,7 +634,9 @@ static void write_save(Tox *tox)
         fclose(file);
         if (rename((char*)path_tmp, (char*)path_real) != 0) {
             log_printf(L_WARNING, "Failed to rename file. %s to %s deleting and trying again\n", path_tmp, path_real);
-            remove((const char *)path_real);
+            if(remove((const char *)path_real) < 0) {
+                log_printf(L_WARNING, "Failed to remove old save file %s\n", path_real)
+            }
             if (rename((char*)path_tmp, (char*)path_real) != 0) {
                 log_printf(L_WARNING, "Saving Failed\n");
             } else {
