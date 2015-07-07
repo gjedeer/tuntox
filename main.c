@@ -336,6 +336,8 @@ int handle_ping_frame(protocol_frame *rcvd_frame)
     frame->data_length = rcvd_frame->data_length;
     
     send_frame(frame, data);
+
+    return 0;
 }
 
 int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
