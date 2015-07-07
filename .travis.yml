@@ -54,3 +54,20 @@ script:
   - cd tuntox
   - find .. -name Makefile
   - make
+
+env:
+  global:
+   # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
+   #   via the "travis encrypt" command using the project repo's public key
+   - secure: "VjQmHxt7StKi1XF45IaYei3/0GtpIjeCeySLCPyHYnSlTMYw1VWti9Pow2Vr7mses27KddWhgl54hYjukaqyNFklfz+cXuke+VSwLp/wKlC7hV+frsrodWCd35hvNDZV3Q49e1u0944Oz4ggiS1yX1+dlXZO/v6HINXouSJbbk/0UowW4T6vkD5x/Muq7ddf5J9qMr6XF7oGzZO/fHnWO4B+xILiWs3R6gk24B8IksHiHEDIsruGnbSx2OUvoYiyNOW9hVczf2DIMZVKhqWxCX7/dEs2E5K4+/pbGfww4JhbGUMtkkGk97a7Y8rdXhs1l+k5IbG9MoZ5MxcyE1t8DRJSiT8SI50AUzDZGpU7YKIRWFxj9hyIlxPuv9aL3AyhGDzHCLAUGCtV0LYWuXUKusfQ3YuWoc/Z+6I9tIDBUdGtPp8R+P7x2pHnq08PQecBgGh+KOj2rkJBv3jP5GTrH7OtjwdKQyggni+otL/0ydq9Cj67sbt2jerjlBWtI4Vg2jVbRwIT2jDcUCMwrL5kCkuXiSvywlvA/qLVIkAvLILdbIXFBUYh/N4z00YiiVhpbc3AkJaiuhDtese272nXPeYTw6qtQnZyoud3jQjWpGmsD7uYstbnRNYsmYWf4Nz2+XIJtAmqHBhRYuq50Q1ImPY2cJyo0yZ6tniSKCcqHRI="
+
+addons:
+  coverity_scan:
+    project:
+      name: "gjedeer/tuntox"
+      description: "Build submitted via Travis CI"
+    notification_email: gdr@gdr.name
+    build_command_prepend: "make clean"
+    build_command:   "make"
+    branch_pattern: master
+
