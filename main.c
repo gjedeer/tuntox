@@ -381,6 +381,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         else
         {
             log_printf(L_ERROR, "Couldn't allocate memory for tunnel\n");
+            close(sockfd);
         }
     }
     else
@@ -553,12 +554,14 @@ void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data,
     if(len < frame->data_length + PROTOCOL_BUFFER_OFFSET)
     {
         log_printf(L_WARNING, "Received frame too small (attempted buffer overflow?): %d bytes, excepted at least %d bytes\n", len, frame->data_length + PROTOCOL_BUFFER_OFFSET);
+        free(frame);
         return;
     }
 
     if(frame->data_length > (TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET))
     {
         log_printf(L_WARNING, "Declared data length too big (attempted buffer overflow?): %d bytes, excepted at most %d bytes\n", frame->data_length, (TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET));
+        free(frame);
         return;
     }
 
