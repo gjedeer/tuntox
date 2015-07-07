@@ -72,7 +72,7 @@ int local_bind()
     if(setsockopt_status < 0)
     {
         log_printf(L_ERROR, "Could not set socket options: %s\n", 
-                explain_setsockopt(bind_sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)));
+                strerror(errno));
         freeaddrinfo(res);
         exit(1);
     }
@@ -82,7 +82,12 @@ int local_bind()
     {
         flags = 0;
     }
-    fcntl(bind_sockfd, F_SETFL, flags | O_NONBLOCK);
+    if(fcntl(bind_sockfd, F_SETFL, flags | O_NONBLOCK) < 0)
+    {
+        log_printf(L_ERROR, "Could not make the socket non-blocking: %s\n", strerror(errno));
+        freeaddrinfo(res);
+        exit(1);
+    }
 
     if(bind(bind_sockfd, res->ai_addr, res->ai_addrlen) < 0)
     {
