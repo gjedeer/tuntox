@@ -132,6 +132,8 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
         log_printf(L_ERROR, "This tunnel mode is not supported yet\n");
         exit(1);
     }
+
+    return 0;
 }
 
 /* Handle a TCP frame received from server */
