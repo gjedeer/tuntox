@@ -50,4 +50,7 @@ before_script:
   - cd ..
 
 script:
+  - pwd
+  - ls -l
+  - find .. -name Makefile
   - make
