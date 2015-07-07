@@ -220,6 +220,7 @@ int get_client_socket(char *hostname, int port)
 
     if (p == NULL) {
         log_printf(L_WARNING, "failed to connect to %s:%d\n", hostname, port);
+        freeaddrinfo(servinfo);
         return -1;
     }
 
