@@ -42,6 +42,7 @@ before_script:
   - cd ..
     # toxcore
   - git clone https://github.com/irungentoo/toxcore.git
+  - cd toxcore
   - autoreconf -i
   - CFLAGS="-Ofast -Wall -Wextra" ./configure --enable-daemon --enable-ntox
   - make -j3
