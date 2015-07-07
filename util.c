@@ -157,6 +157,11 @@ void* file_raw(char *path, uint32_t *size)
 
     fseek(file, 0, SEEK_END);
     len = ftell(file);
+    if(len <= 0)
+    {
+        fclose(file);
+        return NULL;
+    }
     data = malloc(len);
     if(!data) {
         fclose(file);
