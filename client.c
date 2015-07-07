@@ -42,6 +42,7 @@ int local_bind()
     char port[6];
     int yes = 1;
     int flags;
+    int gai_status;
 
     snprintf(port, 6, "%d", local_port);
 
@@ -50,12 +51,18 @@ int local_bind()
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
 
-    getaddrinfo(NULL, port, &hints, &res);
+    gai_status = getaddrinfo(NULL, port, &hints, &res);
+    if(gai_status != 0)
+    {
+        log_printf(L_ERROR, "getaddrinfo: %s\n", gai_strerror(gai_status));
+        exit(1);
+    }
 
     bind_sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if(bind_sockfd < 0)
     {
         log_printf(L_ERROR, "Could not create a socket for local listening: %s\n", strerror(errno));
+        freeaddrinfo(res);
         exit(1);
     }
 
@@ -71,9 +78,12 @@ int local_bind()
     if(bind(bind_sockfd, res->ai_addr, res->ai_addrlen) < 0)
     {
         log_printf(L_ERROR, "Bind to port %d failed: %s\n", local_port, strerror(errno));
+        freeaddrinfo(res);
         close(bind_sockfd);
         exit(1);
     }
+
+    freeaddrinfo(res);
 
     if(listen(bind_sockfd, 1) < 0)
     {
