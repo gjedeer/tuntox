@@ -52,5 +52,6 @@ before_script:
 script:
   - pwd
   - ls -l
+  - cd tuntox
   - find .. -name Makefile
   - make
