@@ -371,7 +371,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
     log_printf(L_DEBUG, "Tunnel ID: %d\n", tunnel_id);
 
     sockfd = get_client_socket(hostname, port);
-    if(sockfd > 0)
+    if(sockfd >= 0)
     {
         tun = tunnel_create(sockfd, tunnel_id, rcvd_frame->friendnumber);
         if(tun)
