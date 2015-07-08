@@ -573,6 +573,7 @@ void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data,
     }
 
     handle_frame(frame);
+    free(frame);
 }
 
 int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_number)
