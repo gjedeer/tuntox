@@ -8,6 +8,8 @@ Tuntox is a single binary which may run in client mode or server mode. As a rule
 
 If you don't know what Tox is - it's an instant messenger protocol which is fully P2P, supports audio/video calls and file transfers. Unlike Skype it's fully open and unlike, say, XMPP - the calls and file transfers actually work. Go download a client from http://utox.org/ or read more at https://tox.im/
 
+[![Coverity Scan Build Status](https://scan.coverity.com/projects/5690/badge.svg)](https://scan.coverity.com/projects/5690)
+
 ## Binary
 
 Get the binaries from Releases tab on github. Just download the correct file for your architecture, execute chmod +x and you're done. The binaries are signed with my PGP key, [11C1 B15A 5D5D D662 E469 928A EBDA 6B97 4ED3 D2B7](https://keybase.io/gdr).
