@@ -70,6 +70,6 @@ Tuntox is piggybacking on the Tox protocol, which itself has not been audited by
 
 Sorry about GPLv3 - both toxcore and utox (from which I borrowed some code) are GPLv3.
 
-Thank you to the toxcore and utox developers without whom this program would never exist. [Donate to Tox](https://donate.tox.im/) so they can get a proper audit.
+Thank you to the toxcore and utox developers without whom this program would never exist.
 
 Thank you Mr_4551 for your help and motivation.
