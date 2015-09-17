@@ -3,6 +3,10 @@
 #include "tox_bootstrap.h"
 #include "log.h"
 
+#ifdef __MACH__
+    #include "mach.h"
+#endif
+
 static struct Tox_Options tox_options;
 Tox *tox;
 int client_socket = 0;
@@ -1108,7 +1112,7 @@ int main(int argc, char *argv[])
         do_daemonize();
     }
 
-    on_exit(cleanup, NULL);
+    atexit(cleanup);
 
     print_version();
 
