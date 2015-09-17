@@ -1,3 +1,4 @@
+#ifdef __MACH__
 #include "mach.h"
 
 /* there is no clock_gettime on MacOS platform */
@@ -18,3 +19,4 @@ int clock_gettime(int clk_id, struct timespec *t)
     
     return 0;
 }
+#endif
