@@ -26,7 +26,7 @@ before_script:
   - sudo ldconfig
 
 script:
-  - make tuntox_static
+  - make tuntox_static TOXCORE_STATIC_LIB=/usr/local/lib/libtoxcore.a SODIUM_STATIC_LIB=/usr/local/lib/libsodium.a
   - make cscope.out
 
 env:

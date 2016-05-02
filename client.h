@@ -14,8 +14,8 @@
 #define CLIENT_STATE_BIND_PORT 12
 #define CLIENT_STATE_SETUP_PIPE 13
 
-int handle_pong_frame(protocol_frame *rcvd_frame);
+int handle_pong_frame();
 int handle_acktunnel_frame(protocol_frame *rcvd_frame);
 int handle_server_tcp_frame(protocol_frame *rcvd_frame);
 int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame);
-int do_client_loop(char *tox_id_str);
+int do_client_loop(uint8_t *tox_id_str);

@@ -51,7 +51,7 @@ typedef struct tunnel_t {
 	/* Connection ID, must be int because of uthash */
 	int connid;
 	/* Friend number of remote end */
-	int32_t friendnumber;
+	uint32_t friendnumber;
 
 	UT_hash_handle hh;
 } tunnel;
@@ -81,7 +81,7 @@ extern int client_local_port_mode;
 /* Forward stdin/stdout to remote machine - SSH ProxyCommand mode */
 extern int client_pipe_mode;
 /* Remote Tox ID in client mode */
-extern char *remote_tox_id;
+extern uint8_t *remote_tox_id;
 /* Ports and hostname for port forwarding */
 extern int remote_port;
 extern char *remote_host;
@@ -96,6 +96,10 @@ extern tunnel *by_id;
 void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp);
 tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber);
 void tunnel_delete(tunnel *t);
+
+void update_select_nfds(int fd);
+int send_frame(protocol_frame *frame, uint8_t *data);
+int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_number);
 
 void print_version(void);
 #endif

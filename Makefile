@@ -41,9 +41,9 @@ tuntox_static: $(OBJECTS) $(INCLUDES)
 
 cscope.out:
 	@echo "  GEN   $@"
-	@cscope -bv ./*.[ch]
+	@cscope -bv ./*.[ch] &> /dev/null
 
 clean:
-	rm -f *.o tuntox gitversion.h
+	rm -f *.o tuntox cscope.out gitversion.h
 
 .PHONY: all clean tuntox_static

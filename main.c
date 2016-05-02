@@ -26,7 +26,7 @@ int client_local_port_mode = 0;
 int client_pipe_mode = 0;
 
 /* Remote Tox ID in client mode */
-char *remote_tox_id = NULL;
+uint8_t *remote_tox_id = NULL;
 
 /* Directory with config and tox save */
 char config_path[500] = "/etc/tuntox/";
@@ -142,15 +142,13 @@ static void do_bootstrap(Tox *tox)
 /* Set username to the machine's FQDN */
 void set_tox_username(Tox *tox)
 {
-    unsigned char hostname[1024];
-    struct addrinfo hints, *info, *p;
-    int gai_result;
+    char hostname[1024];
     TOX_ERR_SET_INFO error;
 
     gethostname(hostname, 1024);
     hostname[1023] = '\0';
 
-    tox_self_set_name(tox, hostname, strlen(hostname), &error);
+    tox_self_set_name(tox, (uint8_t *)hostname, strlen(hostname), &error);
     if(error != TOX_ERR_SET_INFO_OK)
     {
         log_printf(L_DEBUG, "tox_self_set_name() failed (%u)", error);
@@ -170,8 +168,7 @@ void *get_in_addr(struct sockaddr *sa)
 
 int get_client_socket(char *hostname, int port)
 {
-    int sockfd, numbytes;  
-    char buf[READ_BUFFER_SIZE];
+    int sockfd;
     struct addrinfo hints, *servinfo, *p;
     int rv;
     char s[INET6_ADDRSTRLEN];
@@ -313,7 +310,7 @@ int send_tunnel_ack_frame(tunnel *tun)
 {
     protocol_frame frame_st;
     protocol_frame *frame;
-    char data[PROTOCOL_BUFFER_OFFSET];
+    uint8_t data[PROTOCOL_BUFFER_OFFSET];
 
     frame = &frame_st;
     memset(frame, 0, sizeof(protocol_frame));
@@ -366,7 +363,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         return -1;
     }
 
-    strncpy(hostname, rcvd_frame->data, rcvd_frame->data_length);
+    strncpy(hostname, (char *)rcvd_frame->data, rcvd_frame->data_length);
     hostname[rcvd_frame->data_length] = '\0';
 
     log_printf(L_INFO, "Got a request to forward data from %s:%d\n", hostname, port);
@@ -450,7 +447,6 @@ int handle_client_tcp_frame(protocol_frame *rcvd_frame)
 int handle_client_tcp_fin_frame(protocol_frame *rcvd_frame)
 {
     tunnel *tun=NULL;
-    int offset = 0;
     int connid = rcvd_frame->connid;
 
     HASH_FIND_INT(by_id, &connid, tun);
@@ -562,7 +558,7 @@ void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data,
     frame->friendnumber =               friendnumber;
     log_printf(L_DEBUG, "Got protocol frame magic 0x%x type 0x%x from friend %d\n", frame->magic, frame->packet_type, frame->friendnumber);
 
-    if(len < frame->data_length + PROTOCOL_BUFFER_OFFSET)
+    if(len < (size_t)frame->data_length + PROTOCOL_BUFFER_OFFSET)
     {
         log_printf(L_WARNING, "Received frame too small (attempted buffer overflow?): %d bytes, excepted at least %d bytes\n", len, frame->data_length + PROTOCOL_BUFFER_OFFSET);
         free(frame);
@@ -583,7 +579,7 @@ int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_nu
 {
     int packet_length = 0;
     protocol_frame frame_i, *frame;
-    char *data = NULL;
+    uint8_t *data = NULL;
 
     log_printf(L_INFO, "Sending packet to friend #%d to forward %s:%d\n", friend_number, remote_host, remote_port);
     packet_length = PROTOCOL_BUFFER_OFFSET + strlen(remote_host);
@@ -595,7 +591,7 @@ int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_nu
         log_printf(L_ERROR, "Could not allocate memory for tunnel request packet\n");
         exit(1);
     }
-    strcpy(data+PROTOCOL_BUFFER_OFFSET, remote_host);
+    strcpy((char *)data+PROTOCOL_BUFFER_OFFSET, remote_host);
 
     frame->friendnumber = friend_number;
     frame->packet_type = PACKET_TYPE_REQUESTTUNNEL;
@@ -622,9 +618,9 @@ static void write_save(Tox *tox)
     data = malloc(size);
     tox_get_savedata(tox, data);
 
-    strncpy(path_real, config_path, sizeof(config_path));
+    strncpy((char *)path_real, config_path, sizeof(config_path));
 
-    p = path_real + strlen(path_real);
+    p = path_real + strlen((char *)path_real);
     memcpy(p, "tox_save", sizeof("tox_save"));
 
     unsigned int path_len = (p - path_real) + sizeof("tox_save");
@@ -663,15 +659,12 @@ static size_t load_save(uint8_t **out_data)
 {
     void *data;
     uint32_t size;
-    uint8_t path_tmp[512], path_real[512], *p;
-    FILE *file;
+    uint8_t path_real[512], *p;
 
-    strncpy(path_real, config_path, sizeof(config_path));
+    strncpy((char *)path_real, config_path, sizeof(config_path));
 
-    p = path_real + strlen(path_real);
+    p = path_real + strlen((char *)path_real);
     memcpy(p, "tox_save", sizeof("tox_save"));
-
-    unsigned int path_len = (p - path_real) + sizeof("tox_save");
 
     data = file_raw((char *)path_real, &size);
 
@@ -690,7 +683,7 @@ static size_t load_save(uint8_t **out_data)
 void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *message, size_t length, void *userdata)
 {
     unsigned char tox_printable_id[TOX_ADDRESS_SIZE * 2 + 1];
-    int32_t friendnumber;
+    uint32_t friendnumber;
     TOX_ERR_FRIEND_ADD friend_add_error;
 
     log_printf(L_DEBUG, "Got friend request\n");
@@ -709,7 +702,7 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *m
             return;
         }
 
-        if(strncmp(message, shared_secret, TOX_MAX_FRIEND_REQUEST_LENGTH-1))
+        if(strncmp((char *)message, shared_secret, TOX_MAX_FRIEND_REQUEST_LENGTH-1))
         {
             log_printf(L_WARNING, "Received shared secret \"%s\" differs from our shared secret - not accepting request", message);
             return;
@@ -738,7 +731,7 @@ void handle_connection_status_change(Tox *tox, TOX_CONNECTION p_connection_statu
     log_printf(L_INFO, "Connection status changed: %s", status);
 }
 
-void cleanup(int status, void *tmp)
+void cleanup()
 {
     log_printf(L_DEBUG, "kthxbye\n");
     fflush(stdout);
@@ -810,7 +803,7 @@ int do_server_loop()
                 /* Check if connection closed */
                 if(nbytes == 0)
                 {
-                    char data[PROTOCOL_BUFFER_OFFSET];
+                    uint8_t data[PROTOCOL_BUFFER_OFFSET];
                     protocol_frame frame_st, *frame;
 
                     log_printf(L_WARNING, "conn closed!\n");
@@ -1055,7 +1048,7 @@ int main(int argc, char *argv[])
                 break;
             case 'i':
                 /* Tox ID */
-                remote_tox_id = optarg;
+                remote_tox_id = (uint8_t *)optarg;
                 break;
             case 'C':
                 /* Config directory */
