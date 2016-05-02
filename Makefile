@@ -1,28 +1,49 @@
 SOURCES = $(wildcard *.c)
-DEPS=libtoxcore
-CC=gcc
-CFLAGS=-g #-std=c99
-CFLAGS += $(shell pkg-config --cflags $(DEPS))
-LDFLAGS=-g -pthread -lm -static -lrt
-LDFLAGS += $(shell pkg-config --libs $(DEPS))
-OBJECTS=$(SOURCES:.c=.o)
-INCLUDES = $(wildcard *.h)
+INCLUDES = $(wildcard *.h) gitversion.h
+OBJECTS = $(SOURCES:.c=.o)
+DEPS = libtoxcore
 
-all: cscope.out tuntox 
+CFLAGS = $(shell pkg-config --cflags $(DEPS))
+LDFLAGS = $(shell pkg-config --libs $(DEPS))
+LDFLAGS_STATIC = -static -pthread
+
+
+# Check on what platform we are running
+UNAME_M = $(shell uname -m)
+ifeq ($(UNAME_M), x86_64)
+    TOXCORE_STATIC_LIB = /usr/local/lib64/libtoxcore.a
+    SODIUM_STATIC_LIB = /usr/local/lib64/libsodium.a
+endif
+ifneq ($(filter %86, $(UNAME_M)),)
+    TOXCORE_STATIC_LIB = /usr/local/lib/libtoxcore.a
+    SODIUM_STATIC_LIB = /usr/local/lib/libsodium.a
+endif
+
+
+# Targets
+all: tuntox
 
 gitversion.h: .git/HEAD .git/index
-	echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@
+	@echo "  GEN   $@"
+	@echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@
 
-gitversion.c: gitversion.h
-
-.c.o: $(INCLUDES)
-	$(CC) $(CFLAGS) $< -c -o $@
+%.o: %.c $(INCLUDES)
+	@echo "  CC    $@"
+	@$(CC) -c $(CFLAGS) $< -o $@
 
 tuntox: $(OBJECTS) $(INCLUDES)
-	$(CC) -o $@ $(OBJECTS) -ltoxcore -lpthread $(LDFLAGS) /usr/local/lib/libsodium.a /usr/local/lib/libtoxcore.a
+	@echo "  LD    $@"
+	@$(CC) $(LDFLAGS) $(OBJECTS) -o $@
+
+tuntox_static: $(OBJECTS) $(INCLUDES)
+	@echo "  LD    tuntox"
+	@$(CC) $(LDFLAGS_STATIC) $(OBJECTS) -o tuntox $(TOXCORE_STATIC_LIB) $(SODIUM_STATIC_LIB)
 
 cscope.out:
-	cscope -bv ./*.[ch] 
+	@echo "  GEN   $@"
+	@cscope -bv ./*.[ch]
 
 clean:
-	rm -rf *.o tuntox gitversion.h
+	rm -f *.o tuntox gitversion.h
+
+.PHONY: all clean tuntox_static
