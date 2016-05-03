@@ -3,21 +3,9 @@ INCLUDES = $(wildcard *.h) gitversion.h
 OBJECTS = $(SOURCES:.c=.o)
 DEPS = libtoxcore
 
-CFLAGS = $(shell pkg-config --cflags $(DEPS))
-LDFLAGS = $(shell pkg-config --libs $(DEPS))
-LDFLAGS_STATIC = -static -pthread
-
-
-# Check on what platform we are running
-UNAME_M = $(shell uname -m)
-ifeq ($(UNAME_M), x86_64)
-    TOXCORE_STATIC_LIB = /usr/local/lib64/libtoxcore.a
-    SODIUM_STATIC_LIB = /usr/local/lib64/libsodium.a
-endif
-ifneq ($(filter %86, $(UNAME_M)),)
-    TOXCORE_STATIC_LIB = /usr/local/lib/libtoxcore.a
-    SODIUM_STATIC_LIB = /usr/local/lib/libsodium.a
-endif
+CFLAGS += $(shell pkg-config --cflags $(DEPS))
+LDFLAGS += $(shell pkg-config --libs $(DEPS))
+LDFLAGS_STATIC += -static -pthread -Wl,-Bstatic $(LDFLAGS)
 
 
 # Targets
@@ -37,7 +25,7 @@ tuntox: $(OBJECTS) $(INCLUDES)
 
 tuntox_static: $(OBJECTS) $(INCLUDES)
 	@echo "  LD    tuntox"
-	@$(CC) $(LDFLAGS_STATIC) $(OBJECTS) -o tuntox $(TOXCORE_STATIC_LIB) $(SODIUM_STATIC_LIB)
+	@$(CC) $(OBJECTS) $(LDFLAGS_STATIC) -o tuntox
 
 cscope.out:
 	@echo "  GEN   $@"
