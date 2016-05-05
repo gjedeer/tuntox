@@ -1,4 +1,10 @@
 #include <time.h>
+
+/* MacOS related */
+#ifdef __MACH__
+#include "mach.h"
+#endif
+
 #include "log.h"
 #include "main.h"
 #include "client.h"
