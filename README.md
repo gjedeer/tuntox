@@ -42,7 +42,7 @@ So, the laptop now has the Tuntox server installed. How do you connect to it?
 
 	./tuntox -i <ToxID> -L 2222:127.0.0.1:22
 
-where <ToxID> is the ID you noted down when setting up the server. You didn't forget to write it down, did you?
+where `<ToxID>` is the ID you noted down when setting up the server. You didn't forget to write it down, did you?
 
 After you run this command, open a second terminal window and execute:
 
