@@ -30,9 +30,9 @@ Alternatively you may use the -C switch instead:
 
     ./tuntox -C /path/to/the/config/directory/
 
-Tuntox currently does not fork, so if you want it to run at system startup, add something like this to /etc/rc.local:
+To daemonize on startup, add -D:
 
-    /path/to/tuntox &
+    /path/to/tuntox -D
 
 Or, if you run something like supervisord or systemd, you're welcome to contribute a configuration file for the system of your choice (see #3, #4, #6)
 
