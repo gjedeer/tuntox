@@ -6,7 +6,7 @@ Tuntox is a single binary which may run in client mode or server mode. As a rule
 
 **Tuntox is in early work in progress stage**. It won't kill your goats but it may segfault, leak memory or have security issues (although I tried to make it rather secure). It won't be as fast as it could be because of the tremendous amount of debug output.
 
-If you don't know what Tox is - it's an instant messenger protocol which is fully P2P, supports audio/video calls and file transfers. Unlike Skype it's fully open and unlike, say, XMPP - the calls and file transfers actually work. Go download a client from http://utox.org/ or read more at https://tox.im/
+If you don't know what Tox is - it's an instant messenger protocol which is fully P2P, supports audio/video calls and file transfers. Unlike Skype it's fully open and unlike, say, XMPP - the calls and file transfers actually work. Go download a client from http://utox.org/ or read more at https://tox.chat/
 
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/5690/badge.svg)](https://scan.coverity.com/projects/5690)
 
