@@ -1,6 +1,6 @@
 ## Introduction
 
-Tuntox is a program which forwards TCP connections over the [Tox](https://tox.im/) protocol. This allows low-latency access to distant machines behind a NAT you can't control or with a dynamic IP address.
+Tuntox is a program which forwards TCP connections over the [Tox](https://tox.chat/) protocol. This allows low-latency access to distant machines behind a NAT you can't control or with a dynamic IP address.
 
 Tuntox is a single binary which may run in client mode or server mode. As a rule of thumb, run the server on the remote machine you want to access and the client on your local computer from which you want to access the server.
 
