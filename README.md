@@ -52,6 +52,10 @@ Magic, port 2222 on your localhost is now the SSH server on the machine which ru
 
 The -L switch works (almost) the same way it does in SSH. For the uninitiated, -L A:B:C means "forward port C on ip B to port A on localhost". Unlike SSH, you can't use hostnames for B (unless you link the binary dynamically).
 
+Alternatively, SSH ProxyCommand mode works too:
+
+	ssh -o ProxyCommand='./tuntox -i <ToxID> -P localhost:22' gdr@localhost
+
 Fun stuff: [VPN over Tox](VPN.md)
 
 ## Security / threat model
