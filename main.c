@@ -279,7 +279,12 @@ int send_frame(protocol_frame *frame, uint8_t *data)
             /* If this branch is ran, most likely we've hit congestion control. */
             if(custom_packet_error == TOX_ERR_FRIEND_CUSTOM_PACKET_SENDQ)
             {
-                log_printf(L_DEBUG, "[%d] Failed to send packet to friend %d (Packet queue is full)\n", i, frame->friendnumber, custom_packet_error);
+                log_printf(L_DEBUG, "[%d] Failed to send packet to friend %d (Packet queue is full)\n", i, frame->friendnumber);
+            }
+            else if(custom_packet_error == TOX_ERR_FRIEND_CUSTOM_PACKET_FRIEND_NOT_CONNECTED)
+            {
+                log_printf(L_DEBUG, "[%d] Failed to send packet to friend %d (Friend gone)\n", i, frame->friendnumber);
+                break;
             }
             else
             {
@@ -750,7 +755,8 @@ void cleanup(int status, void *tmp)
 
 int do_server_loop()
 {
-    struct timeval tv;
+    struct timeval tv, tv_start, tv_end;
+    unsigned long long ms_start, ms_end;
     fd_set fds;
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     tunnel *tun = NULL;
@@ -776,6 +782,8 @@ int do_server_loop()
         tox_do_interval_ms = tox_iteration_interval(tox);
         tv.tv_usec = (tox_do_interval_ms % 1000) * 1000;
         tv.tv_sec = tox_do_interval_ms / 1000;
+        log_printf(L_DEBUG, "Iteration interval: %dms\n", tox_do_interval_ms);
+        gettimeofday(&tv_start, NULL);
 
         /* Check change in connection state */
         tmp_isconnected = connection_status;
@@ -805,12 +813,20 @@ int do_server_loop()
                         READ_BUFFER_SIZE, 0);
 
                 /* Check if connection closed */
-                if(nbytes == 0)
+                if(nbytes <= 0)
                 {
                     char data[PROTOCOL_BUFFER_OFFSET];
                     protocol_frame frame_st, *frame;
 
-                    log_printf(L_WARNING, "conn closed!\n");
+                    if(nbytes == 0)
+                    {
+                        log_printf(L_WARNING, "conn closed!\n");
+                    }
+                    else
+                    {
+                        log_printf(L_WARNING, "conn closed, code=%d (%s)\n",
+                                errno, strerror(errno));
+                    }
 
                     frame = &frame_st;
                     memset(frame, 0, sizeof(protocol_frame));
@@ -837,6 +853,16 @@ int do_server_loop()
                     send_frame(frame, tox_packet_buf);
                 }
             }
+        }
+
+        gettimeofday(&tv_end, NULL);
+        ms_start = 1000 * tv_start.tv_sec + tv_start.tv_usec/1000;
+        ms_end = 1000 * tv_end.tv_sec + tv_end.tv_usec/1000;
+        
+        if(ms_end - ms_start < tox_do_interval_ms)
+        {
+            log_printf(L_DEBUG, "Sleeping for %d ms extra to prevent high CPU usage\n", (tox_do_interval_ms - (ms_end - ms_start)));
+            usleep((tox_do_interval_ms - (ms_end - ms_start)) * 1000);
         }
     }
 }
