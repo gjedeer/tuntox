@@ -7,6 +7,10 @@
     #include "mach.h"
 #endif
 
+#ifndef TUNTOX_UNUSED
+#define TUNTOX_UNUSED(x) (void)(x)
+#endif
+
 static struct Tox_Options tox_options;
 Tox *tox;
 int client_socket = 0;
@@ -522,6 +526,9 @@ int handle_frame(protocol_frame *frame)
  */
 void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp)
 {
+    TUNTOX_UNUSED(tox);
+    TUNTOX_UNUSED(tmp);
+
     protocol_frame *frame = NULL;
 
     if(len < PROTOCOL_BUFFER_OFFSET)
@@ -682,6 +689,8 @@ static size_t load_save(uint8_t **out_data)
 
 void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *message, size_t length, void *userdata)
 {
+    TUNTOX_UNUSED(userdata);
+
     unsigned char tox_printable_id[TOX_ADDRESS_SIZE * 2 + 1];
     uint32_t friendnumber;
     TOX_ERR_FRIEND_ADD friend_add_error;
@@ -725,6 +734,9 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *m
 /* Callback for tox_callback_self_connection_status() */
 void handle_connection_status_change(Tox *tox, TOX_CONNECTION p_connection_status, void *user_data)
 {
+    TUNTOX_UNUSED(tox);
+    TUNTOX_UNUSED(user_data);
+
     const char *status = NULL;
     connection_status = p_connection_status;
     status = readable_connection_status(connection_status);

@@ -3,6 +3,7 @@ INCLUDES = $(wildcard *.h) gitversion.h
 OBJECTS = $(SOURCES:.c=.o)
 DEPS = libtoxcore
 
+CFLAGS += -Wall -Wextra
 CFLAGS += $(shell pkg-config --cflags $(DEPS))
 LDFLAGS += $(shell pkg-config --libs $(DEPS))
 LDFLAGS_STATIC += -static -pthread -Wl,-Bstatic $(LDFLAGS)
