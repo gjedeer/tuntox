@@ -13,5 +13,7 @@ void id_to_string(char_t *dest, const char_t *src);
 int string_to_id(char_t *w, char_t *a);
 void* file_raw(char *path, uint32_t *size);
 const char *readable_connection_status(TOX_CONNECTION status);
+int parse_local_port_forward(char *string, int *local_port, char **hostname, int *remote_port);
+int parse_pipe_port_forward(char *string, char **hostname, int *remote_port);
 
 #endif

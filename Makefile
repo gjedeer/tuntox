@@ -1,28 +1,38 @@
 SOURCES = $(wildcard *.c)
-DEPS=libtoxcore
-CC=gcc
-CFLAGS=-g #-std=c99
-CFLAGS += $(shell pkg-config --cflags $(DEPS))
-LDFLAGS=-g -pthread -lm -static -lrt
-LDFLAGS += $(shell pkg-config --libs $(DEPS))
-OBJECTS=$(SOURCES:.c=.o)
-INCLUDES = $(wildcard *.h)
+INCLUDES = $(wildcard *.h) gitversion.h
+OBJECTS = $(SOURCES:.c=.o)
+DEPS = libtoxcore
 
-all: cscope.out tuntox 
+CFLAGS += -Wall -Wextra
+CFLAGS += $(shell pkg-config --cflags $(DEPS))
+LDFLAGS += $(shell pkg-config --libs $(DEPS))
+LDFLAGS_STATIC += -static -pthread -Wl,-Bstatic $(LDFLAGS)
+
+
+# Targets
+all: tuntox
 
 gitversion.h: .git/HEAD .git/index
-	echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@
+	@echo "  GEN   $@"
+	@echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@
 
-gitversion.c: gitversion.h
-
-.c.o: $(INCLUDES)
-	$(CC) $(CFLAGS) $< -c -o $@
+%.o: %.c $(INCLUDES)
+	@echo "  CC    $@"
+	@$(CC) -c $(CFLAGS) $< -o $@
 
 tuntox: $(OBJECTS) $(INCLUDES)
-	$(CC) -o $@ $(OBJECTS) -ltoxcore -lpthread $(LDFLAGS) /usr/local/lib/libsodium.a /usr/local/lib/libtoxcore.a
+	@echo "  LD    $@"
+	@$(CC) $(LDFLAGS) $(OBJECTS) -o $@
+
+tuntox_static: $(OBJECTS) $(INCLUDES)
+	@echo "  LD    tuntox"
+	@$(CC) $(OBJECTS) $(LDFLAGS_STATIC) -o tuntox
 
 cscope.out:
-	cscope -bv ./*.[ch] 
+	@echo "  GEN   $@"
+	@cscope -bv ./*.[ch] &> /dev/null
 
 clean:
-	rm -rf *.o tuntox gitversion.h
+	rm -f *.o tuntox cscope.out gitversion.h
+
+.PHONY: all clean tuntox_static
