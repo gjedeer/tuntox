@@ -68,6 +68,8 @@ Therefore, posession of the server's Tox ID and a secret should be considered eq
 
 PSK authentication is optional - it's only enabled when -s switch is present on server side. PSK is sent as Tox friend request message - as far as the author understands libtoxcore code, it's encrypted using server's public EC key.
 
+The Tuntox Server can optionally allow only whitelisted ToxIDs. Supply *-i yourallowedtoxid* one time or more to add a ToxID to the whitelist. Note: The default client behavior is to generate a new ToxID for every run (because author thinks it's a nice privacy feature). You will want to use the -C switch in client to force reading a saved identity from tox_save.
+
 Tuntox is piggybacking on the Tox protocol, which itself has not been audited by security researchers. Tox crypto has been implemented with libsodium (which is based on Bernstein's NaCl) and thus uses the ecliptic curve 25519 for key exchange and salsa20 for stream encryption. According to the author's best knowledge, libsodium makes it as hard as possible to get crypto wrong, but we don't know until Tox has been audited.
 
 ## License
