@@ -210,6 +210,10 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
             frame->connid = tun->connid;
             frame->data_length = 0;
             send_frame(frame, data);
+            if(tun->sockfd)
+            {
+                FD_CLR(tun->sockfd, &client_master_fdset);
+            }
             tunnel_delete(tun);
 
             return -1;
@@ -244,6 +248,10 @@ int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
         return -1;
     }
     
+    if(tun->sockfd)
+    {
+        FD_CLR(tun->sockfd, &client_master_fdset);
+    }
     tunnel_delete(tun);
 
     return 0;
@@ -442,6 +450,7 @@ int do_client_loop(char *tox_id_str)
             case CLIENT_STATE_FORWARDING:
                 {
                     int accept_fd = 0;
+                    int select_rv = 0;
                     tunnel *tmp = NULL;
                     tunnel *tun = NULL;
 
@@ -469,56 +478,75 @@ int do_client_loop(char *tox_id_str)
                     }
 
                     /* Handle reading from sockets */
-                    select(select_nfds, &fds, NULL, NULL, &tv);
-                    HASH_ITER(hh, by_id, tun, tmp)
+                    select_rv = select(select_nfds, &fds, NULL, NULL, &tv);
+                    if(select_rv == -1 || select_rv == 0)
                     {
-                        if(FD_ISSET(tun->sockfd, &fds))
+                        if(select_rv == -1)
                         {
-                            int nbytes;
-                            if(client_local_port_mode)
+                            log_printf(L_DEBUG, "Reading from local socket failed: code=%d (%s)\n",
+                                    errno, strerror(errno));
+                        }
+                        else
+                        {
+                            log_printf(L_DEBUG2, "Nothing to read...");
+                        }
+                    }
+                    else
+                    {
+                        HASH_ITER(hh, by_id, tun, tmp)
+                        {
+                            if(FD_ISSET(tun->sockfd, &fds))
                             {
-                                nbytes = recv(tun->sockfd, 
-                                        tox_packet_buf + PROTOCOL_BUFFER_OFFSET, 
-                                        READ_BUFFER_SIZE, 0);
-                            }
-                            else
-                            {
-                                nbytes = read(tun->sockfd,
-                                        tox_packet_buf + PROTOCOL_BUFFER_OFFSET, 
-                                        READ_BUFFER_SIZE
-                                );
-                            }
+                                int nbytes;
+                                if(client_local_port_mode)
+                                {
+                                    nbytes = recv(tun->sockfd, 
+                                            tox_packet_buf + PROTOCOL_BUFFER_OFFSET, 
+                                            READ_BUFFER_SIZE, 0);
+                                }
+                                else
+                                {
+                                    nbytes = read(tun->sockfd,
+                                            tox_packet_buf + PROTOCOL_BUFFER_OFFSET, 
+                                            READ_BUFFER_SIZE
+                                    );
+                                }
 
-                            /* Check if connection closed */
-                            if(nbytes == 0)
-                            {
-                                char data[PROTOCOL_BUFFER_OFFSET];
-                                protocol_frame frame_st, *frame;
+                                /* Check if connection closed */
+                                if(nbytes == 0)
+                                {
+                                    char data[PROTOCOL_BUFFER_OFFSET];
+                                    protocol_frame frame_st, *frame;
 
-                                log_printf(L_INFO, "Connection closed\n");
+                                    log_printf(L_INFO, "Connection closed\n");
 
-                                frame = &frame_st;
-                                memset(frame, 0, sizeof(protocol_frame));
-                                frame->friendnumber = tun->friendnumber;
-                                frame->packet_type = PACKET_TYPE_TCP_FIN;
-                                frame->connid = tun->connid;
-                                frame->data_length = 0;
-                                send_frame(frame, data);
-                                tunnel_delete(tun);
-                            }
-                            else
-                            {
-                                protocol_frame frame_st, *frame;
+                                    frame = &frame_st;
+                                    memset(frame, 0, sizeof(protocol_frame));
+                                    frame->friendnumber = tun->friendnumber;
+                                    frame->packet_type = PACKET_TYPE_TCP_FIN;
+                                    frame->connid = tun->connid;
+                                    frame->data_length = 0;
+                                    send_frame(frame, data);
+                                    if(tun->sockfd)
+                                    {
+                                        FD_CLR(tun->sockfd, &client_master_fdset);
+                                    }
+                                    tunnel_delete(tun);
+                                }
+                                else
+                                {
+                                    protocol_frame frame_st, *frame;
 
-                                frame = &frame_st;
-                                memset(frame, 0, sizeof(protocol_frame));
-                                frame->friendnumber = tun->friendnumber;
-                                frame->packet_type = PACKET_TYPE_TCP;
-                                frame->connid = tun->connid;
-                                frame->data_length = nbytes;
-                                send_frame(frame, tox_packet_buf);
+                                    frame = &frame_st;
+                                    memset(frame, 0, sizeof(protocol_frame));
+                                    frame->friendnumber = tun->friendnumber;
+                                    frame->packet_type = PACKET_TYPE_TCP;
+                                    frame->connid = tun->connid;
+                                    frame->data_length = nbytes;
+                                    send_frame(frame, tox_packet_buf);
 
-//                                printf("Wrote %d bytes from sock %d to tunnel %d\n", nbytes, tun->sockfd, tun->connid);
+    //                                printf("Wrote %d bytes from sock %d to tunnel %d\n", nbytes, tun->sockfd, tun->connid);
+                                }
                             }
                         }
                     }

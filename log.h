@@ -3,6 +3,7 @@
 #define L_NOTICE	5
 #define L_INFO		6
 #define L_DEBUG		7
+#define L_DEBUG2	8
 
 #define L_UNSET		0x29a
 

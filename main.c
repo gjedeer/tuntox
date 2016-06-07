@@ -115,6 +115,7 @@ void tunnel_delete(tunnel *t)
     if(t->sockfd)
     {
         close(t->sockfd);
+        FD_CLR(t->sockfd, &master_server_fds);
     }
     HASH_DEL( by_id, t );
     free(t);
@@ -744,7 +745,7 @@ void handle_connection_status_change(Tox *tox, TOX_CONNECTION p_connection_statu
     log_printf(L_INFO, "Connection status changed: %s", status);
 }
 
-void cleanup(int status, void *tmp)
+void cleanup()
 {
     log_printf(L_DEBUG, "kthxbye\n");
     fflush(stdout);
@@ -778,6 +779,7 @@ int do_server_loop()
     {
         TOX_CONNECTION tmp_isconnected = 0;
         uint32_t tox_do_interval_ms;
+        int select_rv = 0;
 
 	/* Let tox do its stuff */
 	tox_iterate(tox);
@@ -807,54 +809,69 @@ int do_server_loop()
         fds = master_server_fds;
 
 	/* Poll for data from our client connection */
-	select(select_nfds, &fds, NULL, NULL, &tv);
-        HASH_ITER(hh, by_id, tun, tmp)
+	select_rv = select(select_nfds, &fds, NULL, NULL, &tv);
+        if(select_rv == -1 || select_rv == 0)
         {
-            if(FD_ISSET(tun->sockfd, &fds))
+            if(select_rv == -1)
             {
-                int nbytes = recv(tun->sockfd, 
-                        tox_packet_buf+PROTOCOL_BUFFER_OFFSET, 
-                        READ_BUFFER_SIZE, 0);
-
-                /* Check if connection closed */
-                if(nbytes <= 0)
+                log_printf(L_DEBUG, "Reading from local socket failed: code=%d (%s)\n",
+                        errno, strerror(errno));
+            }
+            else
+            {
+                log_printf(L_DEBUG2, "Nothing to read...");
+            }
+        }
+        else
+        {
+            HASH_ITER(hh, by_id, tun, tmp)
+            {
+                if(FD_ISSET(tun->sockfd, &fds))
                 {
-                    char data[PROTOCOL_BUFFER_OFFSET];
-                    protocol_frame frame_st, *frame;
+                    int nbytes = recv(tun->sockfd, 
+                            tox_packet_buf+PROTOCOL_BUFFER_OFFSET, 
+                            READ_BUFFER_SIZE, 0);
 
-                    if(nbytes == 0)
+                    /* Check if connection closed */
+                    if(nbytes <= 0)
                     {
-                        log_printf(L_WARNING, "conn closed!\n");
+                        char data[PROTOCOL_BUFFER_OFFSET];
+                        protocol_frame frame_st, *frame;
+
+                        if(nbytes == 0)
+                        {
+                            log_printf(L_WARNING, "conn closed!\n");
+                        }
+                        else
+                        {
+                            log_printf(L_WARNING, "conn closed, code=%d (%s)\n",
+                                    errno, strerror(errno));
+                        }
+
+                        frame = &frame_st;
+                        memset(frame, 0, sizeof(protocol_frame));
+                        frame->friendnumber = tun->friendnumber;
+                        frame->packet_type = PACKET_TYPE_TCP_FIN;
+                        frame->connid = tun->connid;
+                        frame->data_length = 0;
+                        send_frame(frame, data);
+
+                        tunnel_delete(tun);
+                                            
+                        continue;
                     }
                     else
                     {
-                        log_printf(L_WARNING, "conn closed, code=%d (%s)\n",
-                                errno, strerror(errno));
+                        protocol_frame frame_st, *frame;
+
+                        frame = &frame_st;
+                        memset(frame, 0, sizeof(protocol_frame));
+                        frame->friendnumber = tun->friendnumber;
+                        frame->packet_type = PACKET_TYPE_TCP;
+                        frame->connid = tun->connid;
+                        frame->data_length = nbytes;
+                        send_frame(frame, tox_packet_buf);
                     }
-
-                    frame = &frame_st;
-                    memset(frame, 0, sizeof(protocol_frame));
-                    frame->friendnumber = tun->friendnumber;
-                    frame->packet_type = PACKET_TYPE_TCP_FIN;
-                    frame->connid = tun->connid;
-                    frame->data_length = 0;
-                    send_frame(frame, data);
-
-                    tunnel_delete(tun);
-                                        
-                    continue;
-                }
-                else
-                {
-                    protocol_frame frame_st, *frame;
-
-                    frame = &frame_st;
-                    memset(frame, 0, sizeof(protocol_frame));
-                    frame->friendnumber = tun->friendnumber;
-                    frame->packet_type = PACKET_TYPE_TCP;
-                    frame->connid = tun->connid;
-                    frame->data_length = nbytes;
-                    send_frame(frame, tox_packet_buf);
                 }
             }
         }
@@ -865,7 +882,7 @@ int do_server_loop()
         
         if(ms_end - ms_start < tox_do_interval_ms)
         {
-            log_printf(L_DEBUG, "Sleeping for %d ms extra to prevent high CPU usage\n", (tox_do_interval_ms - (ms_end - ms_start)));
+            /*log_printf(L_DEBUG, "Sleeping for %d ms extra to prevent high CPU usage\n", (tox_do_interval_ms - (ms_end - ms_start)));*/
             usleep((tox_do_interval_ms - (ms_end - ms_start)) * 1000);
         }
     }
