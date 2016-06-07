@@ -266,6 +266,7 @@ int do_client_loop(char *tox_id_str)
     struct timeval tv;
     fd_set fds;
     static time_t invitation_sent_time = 0;
+    uint32_t invitations_sent = 0;
     TOX_ERR_FRIEND_QUERY friend_query_error;
     TOX_ERR_FRIEND_CUSTOM_PACKET custom_packet_error;
 
@@ -318,7 +319,14 @@ int do_client_loop(char *tox_id_str)
                         log_printf(L_DEBUG, "Sent shared secret of length %u\n", length);
                     }
 
-                    log_printf(L_INFO, "Connected. Sending friend request.\n");
+                    if(invitations_sent == 0)
+                    {
+                        log_printf(L_INFO, "Connected. Sending friend request.\n");
+                    }
+                    else
+                    {
+                        log_printf(L_INFO, "Sending another friend request.\n");
+                    }
 
                     friendnumber = tox_friend_add(
                             tox,
@@ -337,6 +345,7 @@ int do_client_loop(char *tox_id_str)
                     }
 
                     invitation_sent_time = time(NULL);
+                    invitations_sent++;
                     state = CLIENT_STATE_SENTREQUEST;
                     log_printf(L_INFO, "Waiting for friend to accept us...\n");
                 }
@@ -359,9 +368,21 @@ int do_client_loop(char *tox_id_str)
                         }
                         else
                         {
-                            if(0 && (time(NULL) - invitation_sent_time > 60))
+                            if(1 && (time(NULL) - invitation_sent_time > 45))
                             {
+                                TOX_ERR_FRIEND_DELETE error = 0;
+
                                 log_printf(L_INFO, "Sending another friend request...");
+                                tox_friend_delete(
+                                        tox,
+                                        friendnumber,
+                                        &error);
+                                if(error != TOX_ERR_FRIEND_DELETE_OK)
+                                {
+                                    log_printf(L_ERROR, "Error %u deleting friend before reconnection\n", error);
+                                    exit(-1);
+                                }
+
                                 state = CLIENT_STATE_CONNECTED;
                             }
                         }

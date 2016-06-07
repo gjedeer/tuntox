@@ -47,6 +47,12 @@ char *daemon_username = NULL;
 int use_shared_secret = 0;
 char shared_secret[TOX_MAX_FRIEND_REQUEST_LENGTH];
 
+/* Only let in a whitelisted client */
+int server_whitelist_mode = 1;
+allowed_toxid *allowed_toxids = NULL;
+
+int load_saved_toxid_in_client_mode = 0;
+
 fd_set master_server_fds;
 
 /* We keep two hash tables: one indexed by sockfd and another by "connection id" */
@@ -74,6 +80,12 @@ uint16_t get_random_tunnel_id()
         }
         log_printf(L_WARNING, "[i] Found duplicated tunnel ID %d\n", key);
     }
+}
+
+/* Comparison function for allowed_toxid objects */
+int allowed_toxid_cmp(allowed_toxid *a, allowed_toxid *b)
+{
+    return memcmp(a->toxid, b->toxid, TOX_PUBLIC_KEY_SIZE);
 }
 
 void update_select_nfds(int fd)
@@ -723,6 +735,21 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *m
         }
     }
     
+    memset(tox_printable_id, '\0', sizeof(tox_printable_id));
+    id_to_string(tox_printable_id, public_key);
+
+    if(server_whitelist_mode)
+    {
+        allowed_toxid etmp, *found = NULL;
+        memcpy(etmp.toxid, public_key, TOX_PUBLIC_KEY_SIZE);
+        LL_SEARCH(allowed_toxids, found, &etmp, allowed_toxid_cmp);
+        if(!found)
+        {
+            log_printf(L_WARNING, "Rejected friend request from non-whitelisted friend %s", tox_printable_id);
+            return;
+        }
+        log_printf(L_DEBUG, "Friend %s passed whitelist check", tox_printable_id);
+    }
 
     friendnumber = tox_friend_add_norequest(tox, public_key, &friend_add_error);
     if(friend_add_error != TOX_ERR_FRIEND_ADD_OK)
@@ -731,8 +758,6 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *m
         return;
     }
 
-    memset(tox_printable_id, '\0', sizeof(tox_printable_id));
-    id_to_string(tox_printable_id, public_key);
     log_printf(L_INFO, "Accepted friend request from %s as %d\n", tox_printable_id, friendnumber);
 }
 
@@ -788,7 +813,7 @@ int do_server_loop()
         tox_do_interval_ms = tox_iteration_interval(tox);
         tv.tv_usec = (tox_do_interval_ms % 1000) * 1000;
         tv.tv_sec = tox_do_interval_ms / 1000;
-        log_printf(L_DEBUG, "Iteration interval: %dms\n", tox_do_interval_ms);
+        log_printf(L_DEBUG2, "Iteration interval: %dms\n", tox_do_interval_ms);
         gettimeofday(&tv_start, NULL);
 
         /* Check change in connection state */
@@ -1051,6 +1076,7 @@ int main(int argc, char *argv[])
     int oc;
     size_t save_size = 0;
     uint8_t *save_data = NULL;
+    allowed_toxid *allowed_toxid_obj = NULL;
 
     log_init();
 
@@ -1099,7 +1125,19 @@ int main(int argc, char *argv[])
                 break;
             case 'i':
                 /* Tox ID */
+                allowed_toxid_obj = (allowed_toxid *)calloc(sizeof(allowed_toxid), 1);
+                if(!allowed_toxid_obj)
+                {
+                    log_printf(L_ERROR, "Could not allocate memory for allowed_toxid");
+                    exit(1);
+                }
                 remote_tox_id = optarg;
+                if(!string_to_id(allowed_toxid_obj->toxid, optarg))
+                {
+                    log_printf(L_ERROR, "Invalid Tox ID");
+                    exit(1);
+                }
+                LL_APPEND(allowed_toxids, allowed_toxid_obj);
                 break;
             case 'C':
                 /* Config directory */
@@ -1111,6 +1149,7 @@ int main(int argc, char *argv[])
                     config_path[optarg_len] = '/';
                     config_path[optarg_len + 1] = '\0';
                 }
+                load_saved_toxid_in_client_mode = 1;
                 break;
             case 's':
                 /* Shared secret */
@@ -1148,7 +1187,13 @@ int main(int argc, char *argv[])
 
     if(!client_mode && min_log_level == L_UNSET)
     {
-            min_log_level = L_INFO;
+        min_log_level = L_INFO;
+    }
+
+    if(!client_mode && remote_tox_id)
+    {
+        server_whitelist_mode = 1;
+        log_printf(L_INFO, "Server in ToxID whitelisting mode - only clients listed with -i can connect");
     }
 
     if(daemonize)
@@ -1162,7 +1207,7 @@ int main(int argc, char *argv[])
 
     /* Bootstrap tox */
     tox_options_default(&tox_options);
-    if(!client_mode)
+    if((!client_mode) || load_saved_toxid_in_client_mode)
     {
         uint8_t *save_data = NULL;
         save_size = load_save(&save_data);

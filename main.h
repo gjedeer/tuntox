@@ -22,6 +22,7 @@
 
 #include "util.h"
 #include "uthash.h"
+#include "utlist.h"
 
 
 #define PROTOCOL_MAGIC_V1 0xa26a
@@ -55,6 +56,11 @@ typedef struct tunnel_t {
 
 	UT_hash_handle hh;
 } tunnel;
+
+typedef struct allowed_toxid {
+	char toxid[TOX_ADDRESS_SIZE];
+	struct allowed_toxid *next;
+} allowed_toxid;
 
 typedef struct protocol_frame_t {
 	uint32_t friendnumber;
