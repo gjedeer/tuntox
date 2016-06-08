@@ -48,7 +48,7 @@ int use_shared_secret = 0;
 char shared_secret[TOX_MAX_FRIEND_REQUEST_LENGTH];
 
 /* Only let in a whitelisted client */
-int server_whitelist_mode = 1;
+int server_whitelist_mode = 0;
 allowed_toxid *allowed_toxids = NULL;
 
 int load_saved_toxid_in_client_mode = 0;
@@ -1125,6 +1125,7 @@ int main(int argc, char *argv[])
                 break;
             case 'i':
                 /* Tox ID */
+                server_whitelist_mode = 1;
                 allowed_toxid_obj = (allowed_toxid *)calloc(sizeof(allowed_toxid), 1);
                 if(!allowed_toxid_obj)
                 {
@@ -1190,9 +1191,8 @@ int main(int argc, char *argv[])
         min_log_level = L_INFO;
     }
 
-    if(!client_mode && remote_tox_id)
+    if(!client_mode && server_whitelist_mode)
     {
-        server_whitelist_mode = 1;
         log_printf(L_INFO, "Server in ToxID whitelisting mode - only clients listed with -i can connect");
     }
 
