@@ -1126,6 +1126,7 @@ int main(int argc, char *argv[])
             case 'i':
                 /* Tox ID */
                 server_whitelist_mode = 1;
+                log_printf(L_DEBUG, "Server whitelist mode enabled");
                 allowed_toxid_obj = (allowed_toxid *)calloc(sizeof(allowed_toxid), 1);
                 if(!allowed_toxid_obj)
                 {
