@@ -34,7 +34,7 @@ To daemonize on startup, add -D:
 
     /path/to/tuntox -D
 
-Or, if you run something like supervisord or systemd, you're welcome to contribute a configuration file for the system of your choice (see #3, #4, #6)
+Or, if you run something like supervisord or systemd, you're welcome to contribute a configuration file for the system of your choice (see #3, #4, #6). There's absolutely no need to run the server as root.
 
 ## Client
 
@@ -57,6 +57,8 @@ Alternatively, SSH ProxyCommand mode works too:
 	ssh -o ProxyCommand='./tuntox -i <ToxID> -P localhost:22' gdr@localhost
 
 Fun stuff: [VPN over Tox](VPN.md)
+
+Client can be ran as a regular non-root user, [unless A < 1024](https://www.linuxquestions.org/linux/articles/Technical/Why_can_only_root_listen_to_ports_below_1024) ("A" is the local port). There's a [workaround](http://unix.stackexchange.com/a/10737) available.
 
 ## Security / threat model
 
