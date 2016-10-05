@@ -31,6 +31,11 @@ char *remote_tox_id = NULL;
 /* Directory with config and tox save */
 char config_path[500] = "/etc/tuntox/";
 
+/* Limit hostname and port in server */
+int nrules = 0;
+enum rules_policy_enum rules_policy = NONE;
+rule *rules = NULL;
+
 /* Ports and hostname for port forwarding */
 int remote_port = 0;
 char *remote_host = NULL;
@@ -86,6 +91,16 @@ uint16_t get_random_tunnel_id()
 int allowed_toxid_cmp(allowed_toxid *a, allowed_toxid *b)
 {
     return memcmp(a->toxid, b->toxid, TOX_PUBLIC_KEY_SIZE);
+}
+
+/* Comparison function for rule objects */
+int rule_cmp(rule *a, rule *b)
+{
+    //log_printf(L_INFO, "Comparison result: %d %d\n", strcmp(a->host, b->host), (a->port == b->port));
+    if ((strcmp(a->host, b->host)==0) && (a->port == b->port))
+        return 0;
+    else
+        return -1;
 }
 
 void update_select_nfds(int fd)
@@ -388,6 +403,53 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
     hostname[rcvd_frame->data_length] = '\0';
 
     log_printf(L_INFO, "Got a request to forward data from %s:%d\n", hostname, port);
+    
+    // check rules
+    if (rules_policy == ENFORCE && nrules > 0) {
+        // selects a random service
+        int r = rand() % nrules;
+        int i;
+        rule * rtmp = rules;
+        
+        for (i = 0; i < r; i++)
+        {
+            if (rtmp != NULL)
+                rtmp = rtmp->next;
+        }
+        
+        if (rtmp != NULL) {
+            port = rtmp->port;
+            hostname = strdup(rtmp->host);
+        } else {
+            log_printf(L_ERROR, "Could not find valid hostname/port. Dropping request.\n");
+            return -1;
+        }
+
+        log_printf(L_INFO, "ENFORCE policy enabled, using %s:%d\n", hostname, port);
+
+    } else if (rules_policy == VALIDATE && nrules > 0 ) {
+        
+        
+        // new implementatio
+        
+        rule rtmp, *found = NULL;
+        rtmp.host = hostname;
+        rtmp.port = port;
+        
+        LL_SEARCH(rules, found, &rtmp, rule_cmp);
+        if(!found)
+        {
+            log_printf(L_WARNING, "Rejected, request not in rules\n");
+            return -1;
+        }
+        
+    } else {
+        log_printf(L_WARNING, "Filter option active but no allowed ports!\n");
+        log_printf(L_WARNING, "All requests will be dropped.\n");
+        return -1;        
+    }
+
+
 
     tunnel_id = get_random_tunnel_id();
     log_printf(L_DEBUG, "Tunnel ID: %d\n", tunnel_id);
@@ -703,6 +765,88 @@ static size_t load_save(uint8_t **out_data)
     {
         log_printf(L_WARNING, "Could not open save file\n");
         return 0;
+    }
+}
+
+void load_rules()
+{
+    char * ahost=NULL;
+    int aport=0;
+    char line[100 + 1] = "";
+    uint8_t path_tmp[512], path_real[512], *p;
+    FILE *file = NULL;
+    rule *rule_obj = NULL;
+
+
+    strncpy(path_real, config_path, sizeof(config_path));
+
+    p = path_real + strlen(path_real);
+    memcpy(p, "rules", sizeof("rules"));
+
+    unsigned int path_len = (p - path_real) + sizeof("rules");
+
+    file = fopen((char *)path_real, "r");
+    
+    if (file == NULL) {
+        log_printf(L_WARNING, "Could not open rules file!\n");
+        return;
+    }
+    
+    int linen = 0;
+    while (fgets(line, sizeof(line), file)) {
+        /* note that fgets don't strip the terminating \n, checking its
+           presence would allow to handle lines longer that sizeof(line) */
+        if(line)
+        {
+            // allow comments & white lines
+            if (line[0]=='#'||line[0]=='\n') {
+                continue;
+            }
+            if (parse_pipe_port_forward(line, &ahost, &aport) >= 0) {
+                if (aport > 0 && aport < 65535) {
+                    
+                    rule_obj = (rule *)calloc(sizeof(rule), 1);
+                    if(!rule_obj)
+                    {
+                        log_printf(L_ERROR, "Could not allocate memory for rule");
+                        exit(1);
+                    }
+                    
+                    rule_obj->port = aport;
+                    rule_obj->host = strdup(ahost);
+                    
+                    LL_APPEND(rules, rule_obj);
+                    
+                    linen++;
+                } else {
+                    log_printf(L_WARNING, "Invalid port in line: %s\n", line);
+                }
+            } else {
+                log_printf(L_WARNING, "Could not parse line: %s\n", line);
+            }
+        } else {
+            break;
+        }
+    }
+    fclose(file);
+    nrules = linen;
+    
+    log_printf(L_INFO, "Loaded %d rules\n", nrules);
+    if (nrules==0 && 
+            (rules_policy == ENFORCE || rules_policy == VALIDATE)){
+        log_printf(L_WARNING, "No rules loaded! NO CONNECTIONS WILL BE ALLOWED!\n");
+    }
+}
+
+void clear_rules()
+{
+    int i;
+    rule * elt, *tmp;
+    /* now delete each element, use the safe iterator */
+    LL_FOREACH_SAFE(rules,elt,tmp) {
+      LL_DELETE(rules,elt);
+      free(elt->host);
+      free(elt);
     }
 }
 
@@ -1080,7 +1224,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:s:P:dqhSF:DU:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:s:f:P:dqhSF:DU:")) != -1)
     {
         switch(oc)
         {
@@ -1153,6 +1297,26 @@ int main(int argc, char *argv[])
                 }
                 load_saved_toxid_in_client_mode = 1;
                 break;
+            case 'f':
+                switch(optarg[0])
+                {
+                    case 'E':
+                        rules_policy = ENFORCE;
+                        log_printf(L_INFO, "Filter policy set to ENFORCE\n");
+                        break;
+                    case 'V':
+                        rules_policy = VALIDATE;
+                        log_printf(L_INFO, "Filter policy set to VALIDATE\n");
+                        break;
+                    case 'N':
+                        rules_policy = NONE;
+                        log_printf(L_INFO, "Filter policy set to NONE\n");
+                        break;
+                    default:
+                        log_printf(L_WARNING, "Invalid filter policy, reverting to ENFORCE.");
+                        rules_policy = ENFORCE;
+                }
+                break;
             case 's':
                 /* Shared secret */
                 use_shared_secret = 1;
@@ -1195,6 +1359,11 @@ int main(int argc, char *argv[])
     if(!client_mode && server_whitelist_mode)
     {
         log_printf(L_INFO, "Server in ToxID whitelisting mode - only clients listed with -i can connect");
+    }
+    
+    if((!client_mode) && (rules_policy != NONE))
+    {
+        load_rules();
     }
 
     if(daemonize)
@@ -1280,6 +1449,7 @@ int main(int argc, char *argv[])
 
         tox_callback_friend_request(tox, accept_friend_request, NULL);
         do_server_loop();
+        clear_rules();
     }
 
     return 0;

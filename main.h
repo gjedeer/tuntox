@@ -73,6 +73,13 @@ typedef struct protocol_frame_t {
 	uint8_t *data;
 } protocol_frame;
 
+/* Rules policy */
+enum rules_policy_enum { ENFORCE, VALIDATE, NONE };
+typedef struct rule {
+    uint16_t port;
+    char * host;
+    struct rule *next;
+} rule;
 
 /**** GLOBAL VARIABLES ****/
 extern Tox *tox;
