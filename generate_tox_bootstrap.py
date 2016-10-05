@@ -37,6 +37,18 @@ struct bootstrap_node {
         }
     },
 };
+
+struct bootstrap_node tcp_relays[] = {
+{% for node in relays %}
+    {
+        "{{ node.ipv4 }}",
+        {{ node.port }},
+        {
+            {{ node.public_key|toxtoc }}
+        }
+    },
+{% endfor %}
+};
 """
 
 def toxtoc(value):
@@ -77,6 +89,8 @@ if __name__ == "__main__":
         raise ValueError('nodes element not in JSON')
 
     nodes = []
+    tcp_relays = []
+
     for elem in data['nodes']:
         node = {}
         if 'ipv4' not in elem or 'port' not in elem or 'public_key' not in elem:
@@ -102,11 +116,23 @@ if __name__ == "__main__":
                 print "Could not resolve ipv4: %s, skipping!" % elem['ipv4']
                 continue
 
-        nodes.append(node)
+        if 'status_udp' in elem and elem['status_udp']:
+            nodes.append(node)
+
+        if 'tcp_ports' in elem and elem['tcp_ports'] and \
+           'status_tcp' in elem and elem['status_tcp']:
+            for port in elem['tcp_ports']:
+                relay = dict(node)
+                try:
+                    relay['port'] = int(port)
+                except ValueError:
+                    continue
+
+                tcp_relays.append(relay)
 
     env = jinja2.Environment(loader=Loader())
     env.filters['toxtoc'] = toxtoc
     template = env.get_template('tox_bootstrap_template')
-    tox_bootstrap_h = template.render(nodes=nodes, now=datetime.datetime.now(), json_url=json_url)
+    tox_bootstrap_h = template.render(nodes=nodes, now=datetime.datetime.now(), json_url=json_url, relays=tcp_relays)
     open('tox_bootstrap.h', 'w').write(tox_bootstrap_h)
 
