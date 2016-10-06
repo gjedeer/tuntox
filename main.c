@@ -158,10 +158,11 @@ static void do_bootstrap(Tox *tox)
         j = rand();
 
     int i = 0;
-    while(i < 4) {
+    while(i < 8) {
         struct bootstrap_node *d = &bootstrap_nodes[j % countof(bootstrap_nodes)];
+        struct bootstrap_node *r = &tcp_relays[(4*j) % countof(tcp_relays)];
         tox_bootstrap(tox, d->address, d->port, d->key, 0);
-        tox_add_tcp_relay(tox, d->address, d->port, d->key, 0);
+        tox_add_tcp_relay(tox, r->address, r->port, r->key, 0);
         i++;
         j++;
     }
