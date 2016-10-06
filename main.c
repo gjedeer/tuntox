@@ -1060,6 +1060,7 @@ void help()
     fprintf(stderr, "-p - ping the server from -i and exit\n");
     fprintf(stderr, "-C <dir> - save private key in <dir> instead of /etc/tuntox in server mode\n");
     fprintf(stderr, "-s <secret> - shared secret used for connection authentication (max %u characters)\n", TOX_MAX_FRIEND_REQUEST_LENGTH-1);
+    fprintf(stderr, "-e <name> - get shared secret from environment variable with given name\n");
     fprintf(stderr, "-d - debug mode\n");
     fprintf(stderr, "-q - quiet mode\n");
     fprintf(stderr, "-S - send output to syslog instead of stderr\n");
@@ -1081,7 +1082,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:s:P:dqhSF:DU:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:s:e:P:dqhSF:DU:")) != -1)
     {
         switch(oc)
         {
@@ -1159,6 +1160,17 @@ int main(int argc, char *argv[])
                 use_shared_secret = 1;
                 memset(shared_secret, 0, TOX_MAX_FRIEND_REQUEST_LENGTH);
                 strncpy(shared_secret, optarg, TOX_MAX_FRIEND_REQUEST_LENGTH-1);
+                break;
+            case 'e':
+                /* Shared secret from environment variable */
+                if(getenv(optarg) == NULL)
+                {
+                    log_printf(L_ERROR, "Environment variable %s from -e option not found\n", optarg);
+                    exit(1);
+                }
+                use_shared_secret = 1;
+                memset(shared_secret, 0, TOX_MAX_FRIEND_REQUEST_LENGTH);
+                strncpy(shared_secret, getenv(optarg), TOX_MAX_FRIEND_REQUEST_LENGTH-1);
                 break;
             case 'd':
                 min_log_level = L_DEBUG;
