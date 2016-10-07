@@ -444,7 +444,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
             return -1;
         }
         
-    } else {
+    } else if (rules_policy != NONE) {
         log_printf(L_WARNING, "Filter option active but no allowed ports!\n");
         log_printf(L_WARNING, "All requests will be dropped.\n");
         return -1;        
