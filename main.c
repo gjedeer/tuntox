@@ -33,6 +33,7 @@ char config_path[500] = "/etc/tuntox/";
 
 /* Limit hostname and port in server */
 int nrules = 0;
+char rules_file[500] = "/etc/tuntox/rules";
 enum rules_policy_enum rules_policy = NONE;
 rule *rules = NULL;
 
@@ -445,9 +446,8 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         }
         
     } else if (rules_policy != NONE) {
-        log_printf(L_WARNING, "Filter option active but no allowed ports!\n");
-        log_printf(L_WARNING, "All requests will be dropped.\n");
-        return -1;        
+        log_printf(L_WARNING, "Filter option active but no allowed host/port. All requests will be dropped.\n");
+        return -1;
     }
 
 
@@ -774,22 +774,13 @@ void load_rules()
     char * ahost=NULL;
     int aport=0;
     char line[100 + 1] = "";
-    uint8_t path_tmp[512], path_real[512], *p;
     FILE *file = NULL;
     rule *rule_obj = NULL;
 
-
-    strncpy(path_real, config_path, sizeof(config_path));
-
-    p = path_real + strlen(path_real);
-    memcpy(p, "rules", sizeof("rules"));
-
-    unsigned int path_len = (p - path_real) + sizeof("rules");
-
-    file = fopen((char *)path_real, "r");
+    file = fopen(rules_file, "r");
     
     if (file == NULL) {
-        log_printf(L_WARNING, "Could not open rules file!\n");
+        log_printf(L_WARNING, "Could not open rules file (%s)\n", rules_file);
         return;
     }
     
@@ -1204,6 +1195,8 @@ void help()
     fprintf(stderr, "-p - ping the server from -i and exit\n");
     fprintf(stderr, "-C <dir> - save private key in <dir> instead of /etc/tuntox in server mode\n");
     fprintf(stderr, "-s <secret> - shared secret used for connection authentication (max %u characters)\n", TOX_MAX_FRIEND_REQUEST_LENGTH-1);
+    fprintf(stderr, "-f <file> - allows only connections to hostname/port combinations contained in <file>. Rules must by entered one per line with the <hostname>:<port> format\n");
+    fprintf(stderr, "-e <file> - same as -f, but force the connection to a randomly selected hostname/port combination of <file>, ignoring the client's request\n");
     fprintf(stderr, "-d - debug mode\n");
     fprintf(stderr, "-q - quiet mode\n");
     fprintf(stderr, "-S - send output to syslog instead of stderr\n");
@@ -1225,7 +1218,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:s:f:P:dqhSF:DU:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:s:f:e:P:dqhSF:DU:")) != -1)
     {
         switch(oc)
         {
@@ -1299,24 +1292,14 @@ int main(int argc, char *argv[])
                 load_saved_toxid_in_client_mode = 1;
                 break;
             case 'f':
-                switch(optarg[0])
-                {
-                    case 'E':
-                        rules_policy = ENFORCE;
-                        log_printf(L_INFO, "Filter policy set to ENFORCE\n");
-                        break;
-                    case 'V':
-                        rules_policy = VALIDATE;
-                        log_printf(L_INFO, "Filter policy set to VALIDATE\n");
-                        break;
-                    case 'N':
-                        rules_policy = NONE;
-                        log_printf(L_INFO, "Filter policy set to NONE\n");
-                        break;
-                    default:
-                        log_printf(L_WARNING, "Invalid filter policy, reverting to ENFORCE.");
-                        rules_policy = ENFORCE;
-                }
+                strncpy(rules_file, optarg, sizeof(rules_file) - 1);
+                rules_policy = VALIDATE;
+                log_printf(L_INFO, "Filter policy set to VALIDATE\n");
+                break;
+            case 'e':
+                strncpy(rules_file, optarg, sizeof(rules_file) - 1);
+                rules_policy = ENFORCE;
+                log_printf(L_INFO, "Filter policy set to ENFORCE\n");
                 break;
             case 's':
                 /* Shared secret */
