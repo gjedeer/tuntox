@@ -74,7 +74,7 @@ typedef struct protocol_frame_t {
 } protocol_frame;
 
 /* Rules policy */
-enum rules_policy_enum { ENFORCE, VALIDATE, NONE };
+enum rules_policy_enum { VALIDATE, NONE };
 typedef struct rule {
     uint16_t port;
     char * host;

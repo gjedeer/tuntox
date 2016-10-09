@@ -407,32 +407,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
     log_printf(L_INFO, "Got a request to forward data from %s:%d\n", hostname, port);
     
     // check rules
-    if (rules_policy == ENFORCE && nrules > 0) {
-        // selects a random service
-        int r = rand() % nrules;
-        int i;
-        rule * rtmp = rules;
-        
-        for (i = 0; i < r; i++)
-        {
-            if (rtmp != NULL)
-                rtmp = rtmp->next;
-        }
-        
-        if (rtmp != NULL) {
-            port = rtmp->port;
-            hostname = strdup(rtmp->host);
-        } else {
-            log_printf(L_ERROR, "Could not find valid hostname/port. Dropping request.\n");
-            return -1;
-        }
-
-        log_printf(L_INFO, "ENFORCE policy enabled, using %s:%d\n", hostname, port);
-
-    } else if (rules_policy == VALIDATE && nrules > 0 ) {
-        
-        
-        // new implementatio
+    if (rules_policy == VALIDATE && nrules > 0 ) {
         
         rule rtmp, *found = NULL;
         rtmp.host = hostname;
@@ -444,7 +419,6 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
             log_printf(L_WARNING, "Rejected, request not in rules\n");
             return -1;
         }
-        
     } else if (rules_policy != NONE) {
         log_printf(L_WARNING, "Filter option active but no allowed host/port. All requests will be dropped.\n");
         return -1;
@@ -808,7 +782,6 @@ void load_rules()
                     rule_obj->host = strdup(ahost);
                     
                     LL_APPEND(rules, rule_obj);
-                    
                     linen++;
                 } else {
                     log_printf(L_WARNING, "Invalid port in line: %s\n", line);
@@ -824,8 +797,7 @@ void load_rules()
     nrules = linen;
     
     log_printf(L_INFO, "Loaded %d rules\n", nrules);
-    if (nrules==0 && 
-            (rules_policy == ENFORCE || rules_policy == VALIDATE)){
+    if (nrules==0 && rules_policy == VALIDATE){
         log_printf(L_WARNING, "No rules loaded! NO CONNECTIONS WILL BE ALLOWED!\n");
     }
 }
@@ -1196,7 +1168,6 @@ void help()
     fprintf(stderr, "-C <dir> - save private key in <dir> instead of /etc/tuntox in server mode\n");
     fprintf(stderr, "-s <secret> - shared secret used for connection authentication (max %u characters)\n", TOX_MAX_FRIEND_REQUEST_LENGTH-1);
     fprintf(stderr, "-f <file> - allows only connections to hostname/port combinations contained in <file>. Rules must by entered one per line with the <hostname>:<port> format\n");
-    fprintf(stderr, "-e <file> - same as -f, but force the connection to a randomly selected hostname/port combination of <file>, ignoring the client's request\n");
     fprintf(stderr, "-d - debug mode\n");
     fprintf(stderr, "-q - quiet mode\n");
     fprintf(stderr, "-S - send output to syslog instead of stderr\n");
@@ -1218,7 +1189,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:s:f:e:P:dqhSF:DU:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:s:f:P:dqhSF:DU:")) != -1)
     {
         switch(oc)
         {
@@ -1295,11 +1266,6 @@ int main(int argc, char *argv[])
                 strncpy(rules_file, optarg, sizeof(rules_file) - 1);
                 rules_policy = VALIDATE;
                 log_printf(L_INFO, "Filter policy set to VALIDATE\n");
-                break;
-            case 'e':
-                strncpy(rules_file, optarg, sizeof(rules_file) - 1);
-                rules_policy = ENFORCE;
-                log_printf(L_INFO, "Filter policy set to ENFORCE\n");
                 break;
             case 's':
                 /* Shared secret */
