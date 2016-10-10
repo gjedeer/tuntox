@@ -1170,7 +1170,7 @@ void help()
     fprintf(stderr, "-p - ping the server from -i and exit\n");
     fprintf(stderr, "-C <dir> - save private key in <dir> instead of /etc/tuntox in server mode\n");
     fprintf(stderr, "-s <secret> - shared secret used for connection authentication (max %u characters)\n", TOX_MAX_FRIEND_REQUEST_LENGTH-1);
-    fprintf(stderr, "-f <file> - allows only connections to hostname/port combinations contained in <file>. Rules must by entered one per line with the <hostname>:<port> format\n");
+    fprintf(stderr, "-f <file> - only allow connections to hostname/port combinations contained in <file>. Rules must by entered one per line with the <hostname>:<port> format\n");
     fprintf(stderr, "-d - debug mode\n");
     fprintf(stderr, "-q - quiet mode\n");
     fprintf(stderr, "-S - send output to syslog instead of stderr\n");
