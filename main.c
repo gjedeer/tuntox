@@ -743,6 +743,7 @@ static size_t load_save(uint8_t **out_data)
     }
 }
 
+/* Loads a list of allowed hostnames and ports from file. Format is hostname:port*/
 void load_rules()
 {
     char * ahost=NULL;
@@ -750,6 +751,7 @@ void load_rules()
     char line[100 + 1] = "";
     FILE *file = NULL;
     rule *rule_obj = NULL;
+    int valid_rules = 0;
 
     file = fopen(rules_file, "r");
     
@@ -758,13 +760,10 @@ void load_rules()
         return;
     }
     
-    int linen = 0;
     while (fgets(line, sizeof(line), file)) {
-        /* note that fgets don't strip the terminating \n, checking its
-           presence would allow to handle lines longer that sizeof(line) */
         if(line)
         {
-            // allow comments & white lines
+            /* allow comments & white lines */
             if (line[0]=='#'||line[0]=='\n') {
                 continue;
             }
@@ -782,7 +781,7 @@ void load_rules()
                     rule_obj->host = strdup(ahost);
                     
                     LL_APPEND(rules, rule_obj);
-                    linen++;
+                    valid_rules++;
                 } else {
                     log_printf(L_WARNING, "Invalid port in line: %s\n", line);
                 }
@@ -790,23 +789,27 @@ void load_rules()
                 log_printf(L_WARNING, "Could not parse line: %s\n", line);
             }
         } else {
+            /* reached end of file*/ 
             break;
         }
     }
     fclose(file);
-    nrules = linen;
+    
+    /* save valid rules in global variable */
+    nrules = valid_rules;
     
     log_printf(L_INFO, "Loaded %d rules\n", nrules);
-    if (nrules==0 && rules_policy == VALIDATE){
+    if (nrules==0 && rules_policy != NONE){
         log_printf(L_WARNING, "No rules loaded! NO CONNECTIONS WILL BE ALLOWED!\n");
     }
 }
 
+/* Clear rules loaded into memory */
 void clear_rules()
 {
     int i;
     rule * elt, *tmp;
-    /* now delete each element, use the safe iterator */
+    /* delete each elemen using the safe iterator */
     LL_FOREACH_SAFE(rules,elt,tmp) {
       LL_DELETE(rules,elt);
       free(elt->host);
