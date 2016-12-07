@@ -1,4 +1,6 @@
 language: c
+sudo: required
+dist: xenial
 
 before_script:
   #installing libsodium, needed for Core
@@ -16,13 +18,14 @@ before_script:
   - cmake .
   - make -j3
   - sudo make install
+  - sudo ldconfig
   - cd ..
   - sudo apt-get install cscope
 
 script:
   - cd tuntox
   - find .. -name Makefile
-  - make
+  - make tuntox_nostatic
 
 env:
   global:
