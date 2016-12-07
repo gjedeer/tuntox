@@ -1319,6 +1319,17 @@ int main(int argc, char *argv[])
         load_rules();
     }
 
+    /* If shared secret has not been provided via -s, read from TUNTOX_SHARED_SECRET env variable */
+    if(!use_shared_secret)
+    {
+        if(getenv("TUNTOX_SHARED_SECRET") != NULL)
+        {
+            use_shared_secret = 1;
+            memset(shared_secret, 0, TOX_MAX_FRIEND_REQUEST_LENGTH);
+            strncpy(shared_secret, getenv("TUNTOX_SHARED_SECRET"), TOX_MAX_FRIEND_REQUEST_LENGTH-1);
+        }
+    }
+
     if(daemonize)
     {
         do_daemonize();
