@@ -10,24 +10,29 @@ DSO_LDFLAGS += $(shell pkg-config --libs $(DEPS))
 OBJECTS=$(SOURCES:.c=.o)
 INCLUDES = $(wildcard *.h)
 
-all: cscope.out tuntox 
+
+# Targets
+all: tuntox
 
 gitversion.h: .git/HEAD .git/index
-	echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@
+	@echo "  GEN   $@"
+	@echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@
 
-gitversion.c: gitversion.h
-
-.c.o: $(INCLUDES)
-	$(CC) $(CFLAGS) $< -c -o $@
+%.o: %.c $(INCLUDES)
+	@echo "  CC    $@"
+	@$(CC) -c $(CFLAGS) $< -o $@
 
 tuntox: $(OBJECTS) $(INCLUDES)
-	$(CC) -o $@ $(OBJECTS) -lpthread $(LDFLAGS) /usr/local/lib/libtoxmessenger.a /usr/local/lib/libtoxcore.a
+	$(CC) -o $@ $(OBJECTS) -lpthread $(LDFLAGS) 
 
 tuntox_nostatic: $(OBJECTS) $(INCLUDES)
 	$(CC) -o $@ $(OBJECTS) -lpthread $(DSO_LDFLAGS) 
 
 cscope.out:
-	cscope -bv ./*.[ch] 
+	@echo "  GEN   $@"
+	@cscope -bv ./*.[ch] &> /dev/null
 
 clean:
-	rm -rf *.o tuntox gitversion.h
+	rm -f *.o tuntox cscope.out gitversion.h
+
+.PHONY: all clean tuntox_static

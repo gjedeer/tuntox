@@ -1,3 +1,5 @@
+sudo: required
+dist: trusty
 language: c
 sudo: required
 dist: xenial
@@ -20,7 +22,7 @@ before_script:
   - sudo make install
   - sudo ldconfig
   - cd ..
-  - sudo apt-get install cscope
+  - sudo ldconfig
 
 script:
   - cd tuntox
