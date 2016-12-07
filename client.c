@@ -37,7 +37,6 @@ int handle_pong_frame(protocol_frame *rcvd_frame)
 
     if(ping_mode)
     {
-//        state = CLIENT_STATE_PONG_RECEIVED;
         state = CLIENT_STATE_SEND_PING;
     }
     return 0;
@@ -198,7 +197,7 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
 
         if(sent_bytes < 0)
         {
-            char data[PROTOCOL_BUFFER_OFFSET];
+            uint8_t data[PROTOCOL_BUFFER_OFFSET];
             protocol_frame frame_st, *frame;
 
             log_printf(L_INFO, "Could not write to socket %d: %s\n", write_sockfd, strerror(errno));
@@ -231,7 +230,6 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
 int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
 {
     tunnel *tun=NULL;
-    int offset = 0;
     int connid = rcvd_frame->connid;
 
     HASH_FIND_INT(by_id, &connid, tun);
@@ -258,7 +256,7 @@ int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
 }
 
 /* Main loop for the client */
-int do_client_loop(char *tox_id_str)
+int do_client_loop(unsigned char *tox_id_str)
 {
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     unsigned char tox_id[TOX_ADDRESS_SIZE];
@@ -273,7 +271,7 @@ int do_client_loop(char *tox_id_str)
     client_tunnel.sockfd = 0;
     FD_ZERO(&client_master_fdset);
 
-    tox_callback_friend_lossless_packet(tox, parse_lossless_packet, NULL);
+    tox_callback_friend_lossless_packet(tox, parse_lossless_packet);
 
     if(!string_to_id(tox_id, tox_id_str))
     {
@@ -292,7 +290,7 @@ int do_client_loop(char *tox_id_str)
     while(1)
     {
 	/* Let tox do its stuff */
-	tox_iterate(tox);
+	tox_iterate(tox, NULL);
 
         switch(state)
         {
@@ -307,15 +305,15 @@ int do_client_loop(char *tox_id_str)
                 break;
             case CLIENT_STATE_CONNECTED:
                 {
-                    uint8_t* data = "Hi, fellow tuntox instance!";
+                    uint8_t* data = (uint8_t *)"Hi, fellow tuntox instance!";
                     uint16_t length = sizeof(data);
                     TOX_ERR_FRIEND_ADD add_error;
 
                     if(use_shared_secret)
                     {
-                        data = shared_secret;
+                        data = (uint8_t *)shared_secret;
                         data[TOX_MAX_FRIEND_REQUEST_LENGTH-1] = '\0';
-                        length = strlen(data)+1;
+                        length = strlen((char *)data)+1;
                         log_printf(L_DEBUG, "Sent shared secret of length %u\n", length);
                     }
 

@@ -1,7 +1,7 @@
 SOURCES = $(wildcard *.c)
 DEPS=libsodium toxcore
 CC=gcc
-CFLAGS=-g #-std=c99
+CFLAGS=-g -Wall #-std=c99
 CFLAGS += $(shell pkg-config --cflags $(DEPS))
 LDFLAGS=-g -pthread -lm -static -lrt
 LDFLAGS += $(shell pkg-config --static --libs $(DEPS))

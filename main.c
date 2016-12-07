@@ -177,7 +177,7 @@ void set_tox_username(Tox *tox)
     int gai_result;
     TOX_ERR_SET_INFO error;
 
-    gethostname(hostname, 1024);
+    gethostname((char*)hostname, 1024);
     hostname[1023] = '\0';
 
     tox_self_set_name(tox, hostname, strlen(hostname), &error);
