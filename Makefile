@@ -1,10 +1,12 @@
 SOURCES = $(wildcard *.c)
-DEPS=libtoxcore
+DEPS=libsodium toxcore
 CC=gcc
 CFLAGS=-g #-std=c99
 CFLAGS += $(shell pkg-config --cflags $(DEPS))
 LDFLAGS=-g -pthread -lm -static -lrt
-LDFLAGS += $(shell pkg-config --libs $(DEPS))
+LDFLAGS += $(shell pkg-config --static --libs $(DEPS))
+DSO_LDFLAGS=-g -pthread -lm -lrt
+DSO_LDFLAGS += $(shell pkg-config --libs $(DEPS))
 OBJECTS=$(SOURCES:.c=.o)
 INCLUDES = $(wildcard *.h)
 
@@ -19,7 +21,10 @@ gitversion.c: gitversion.h
 	$(CC) $(CFLAGS) $< -c -o $@
 
 tuntox: $(OBJECTS) $(INCLUDES)
-	$(CC) -o $@ $(OBJECTS) -ltoxcore -lpthread $(LDFLAGS) /usr/local/lib/libsodium.a /usr/local/lib/libtoxcore.a
+	$(CC) -o $@ $(OBJECTS) -lpthread $(LDFLAGS) /usr/local/lib/libtoxmessenger.a /usr/local/lib/libtoxcore.a
+
+tuntox_nostatic: $(OBJECTS) $(INCLUDES)
+	$(CC) -o $@ $(OBJECTS) -lpthread $(DSO_LDFLAGS) 
 
 cscope.out:
 	cscope -bv ./*.[ch] 

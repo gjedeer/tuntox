@@ -331,7 +331,7 @@ int send_frame(protocol_frame *frame, uint8_t *data)
 
         for(j = 0; j < i; j++)
         {
-            tox_iterate(tox);
+            tox_iterate(tox, NULL);
             usleep(j * 10000);
         }
     }
@@ -904,7 +904,7 @@ int do_server_loop()
     tunnel *tmp = NULL;
     TOX_CONNECTION connected = 0;
 
-    tox_callback_friend_lossless_packet(tox, parse_lossless_packet, NULL);
+    tox_callback_friend_lossless_packet(tox, parse_lossless_packet);
 
     tv.tv_sec = 0;
     tv.tv_usec = 20000;
@@ -918,7 +918,7 @@ int do_server_loop()
         int select_rv = 0;
 
 	/* Let tox do its stuff */
-	tox_iterate(tox);
+	tox_iterate(tox, NULL);
 
         /* Get the desired sleep time, used in select() later */
         tox_do_interval_ms = tox_iteration_interval(tox);
@@ -1378,7 +1378,7 @@ int main(int argc, char *argv[])
     }
 
     set_tox_username(tox);
-    tox_callback_self_connection_status(tox, handle_connection_status_change, NULL);
+    tox_callback_self_connection_status(tox, handle_connection_status_change);
 
     do_bootstrap(tox);
 
@@ -1411,7 +1411,7 @@ int main(int argc, char *argv[])
         tox_printable_id[TOX_ADDRESS_SIZE * 2] = '\0';
         log_printf(L_INFO, "Using Tox ID: %s\n", tox_printable_id);
 
-        tox_callback_friend_request(tox, accept_friend_request, NULL);
+        tox_callback_friend_request(tox, accept_friend_request);
         do_server_loop();
         clear_rules();
     }
