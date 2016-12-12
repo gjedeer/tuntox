@@ -35,4 +35,4 @@ cscope.out:
 clean:
 	rm -f *.o tuntox cscope.out gitversion.h
 
-.PHONY: all clean tuntox_static
+.PHONY: all clean tuntox
