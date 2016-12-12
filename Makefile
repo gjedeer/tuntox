@@ -18,7 +18,7 @@ gitversion.h: .git/HEAD .git/index
 	@echo "  GEN   $@"
 	@echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@
 
-%.o: %.c $(INCLUDES)
+%.o: %.c $(INCLUDES) gitversion.h
 	@echo "  CC    $@"
 	@$(CC) -c $(CFLAGS) $< -o $@
 
