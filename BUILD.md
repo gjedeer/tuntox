@@ -1,10 +1,9 @@
-* Install libsodium http://doc.libsodium.org/installation/README.html
-* Install libtoxcore (libtoxav and the DNS client are not required) https://github.com/irungentoo/toxcore/blob/master/INSTALL.md
+* Install c-toxcore (libtoxav and the DNS client are not required) https://github.com/TokTok/c-toxcore/blob/master/INSTALL.md
 * git clone https://github.com/gjedeer/tuntox.git
 * cd tuntox
 * make
 
-The makefile creates a static binary by default. If you're not a fan of static binaries, remove `-static` from `LDFLAGS`. 
+The makefile creates a static binary by default. If you're not a fan of static binaries, `make tuntox_nostatic`. 
 
 One reason to do so may be if you'd like to resolve hostnames on the tuntox server (invoke client with `-L 80:reddit.com:80` instead of `-L 80:198.41.208.138:80`). 
 
