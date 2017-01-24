@@ -414,10 +414,18 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         if(!found)
         {
             log_printf(L_WARNING, "Rejected, request not in rules\n");
+            if(hostname)
+            {
+                free(hostname);
+            }
             return -1;
         }
     } else if (rules_policy != NONE) {
         log_printf(L_WARNING, "Filter option active but no allowed host/port. All requests will be dropped.\n");
+        if(hostname)
+        {
+            free(hostname);
+        }
         return -1;
     }
 
