@@ -29,7 +29,7 @@ before_script:
   - sudo ldconfig
   - cd ..
   - sudo apt-get install cscope
-  - pushd
+  - pushd .
 
 script:
   - popd
