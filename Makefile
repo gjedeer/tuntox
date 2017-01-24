@@ -18,7 +18,10 @@ gitversion.h: .git/HEAD .git/index
 	@echo "  GEN   $@"
 	@echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@
 
-%.o: %.c $(INCLUDES) gitversion.h
+tox_bootstrap.h: 
+	python generate_tox_bootstrap.py 
+
+%.o: %.c $(INCLUDES) gitversion.h tox_bootstrap.h
 	@echo "  CC    $@"
 	@$(CC) -c $(CFLAGS) $< -o $@
 
@@ -33,6 +36,6 @@ cscope.out:
 	@cscope -bv ./*.[ch] &> /dev/null
 
 clean:
-	rm -f *.o tuntox cscope.out gitversion.h
+	rm -f *.o tuntox cscope.out gitversion.h tox_bootstrap.h
 
 .PHONY: all clean tuntox
