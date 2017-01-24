@@ -29,8 +29,10 @@ before_script:
   - sudo ldconfig
   - cd ..
   - sudo apt-get install cscope
+  - pushd .
 
 script:
+  - popd
   - cd tuntox
   - find .. -name Makefile
   - make tuntox_nostatic
@@ -47,7 +49,7 @@ addons:
       name: "gjedeer/tuntox"
       description: "Build submitted via Travis CI"
     notification_email: gdr@gdr.name
-#    build_command_prepend: "make clean"
+    build_command_prepend: "cd tuntox; make clean"
     build_command:   "make"
     branch_pattern: master
 
