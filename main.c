@@ -1337,7 +1337,6 @@ int main(int argc, char *argv[])
     tox_options_default(&tox_options);
     if((!client_mode) || load_saved_toxid_in_client_mode)
     {
-        uint8_t *save_data = NULL;
         save_size = load_save(&save_data);
         if(save_data && save_size)
         {
