@@ -17,6 +17,16 @@ Restart=on-failure
 #User=proxy
 #Group=proxy
 
+# Uncomment this and add a password to enable authentication
+#Environment=TUNTOX_SHARED_SECRET=yourpassword
+
+# Makes / read-only
+ProtectSystem=strict
+# … except for /etc/tuntox. Modify this if you change the default directory,
+# comment it out if you want to generate a new id on each start.
+# Remember that /etc/tuntox still needs to be writable by User!
+ReadWriteDirectories=/etc/tuntox
+
 [Install]
 WantedBy=multi-user.target
 Alias=tuntox.service
