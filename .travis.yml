@@ -18,7 +18,7 @@ before_script:
   #creating libraries links and updating cache
   - sudo ldconfig > /dev/null
   #installing check, needed for unit tests
-  - sudo apt-get install check cmake python-jinja2 cscope > /dev/null
+  - sudo apt-get install check cmake python-jinja2 cscope
   - cd ..
     # toxcore
   - git clone https://github.com/TokTok/c-toxcore.git
