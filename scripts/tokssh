@@ -6,12 +6,20 @@
 # tokssh user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
 # tokssh 5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
 # tokssh -p 2222 -o ForwardAgent=yes user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
+# tokssh user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054 -s TuNToXSeCreT
 #
 
 array=( $@ )
 len=${#array[@]}
 userhost=${array[$len-1]}
 args=${array[@]:0:$len-1}
+
+if [ "${array[$len-2]}" == "-s" ]
+then
+        secret="${array[@]:$len-2:$len-1}"
+        len=$[len-2]
+fi
+
 
 arruserhost=(${userhost//@/ })
 arruserhostlen=${#arruserhost[@]}
@@ -24,6 +32,6 @@ then
 	ssh -o ProxyCommand="tuntox -i $toxid -P 127.0.0.1:%p" $args $user@localhost
 else
 # last argument is just toxid
-	ssh -o ProxyCommand="tuntox -i $toxid -P 127.0.0.1:%p" $args localhost
+	ssh -o ProxyCommand="tuntox -i $userhost -P 127.0.0.1:%p" $args localhost
 fi
 
