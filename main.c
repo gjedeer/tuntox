@@ -287,7 +287,7 @@ int send_frame(protocol_frame *frame, uint8_t *data)
     data[6] = BYTE2(frame->data_length);
     data[7] = BYTE1(frame->data_length);
 
-    for(i = 0; i < 65;) /* 1.27 seconds per packet max */
+    for(i = 0; i < 33;) /* 2.667 seconds per packet max */
     {
         int j;
 
@@ -329,7 +329,7 @@ int send_frame(protocol_frame *frame, uint8_t *data)
         for(j = 0; j < i; j++)
         {
             tox_iterate(tox, NULL);
-            usleep(j * 10000);
+            usleep(j * 1000);
         }
     }
 
@@ -897,6 +897,7 @@ int do_server_loop()
     tunnel *tun = NULL;
     tunnel *tmp = NULL;
     TOX_CONNECTION connected = 0;
+    int sent_data = 0;
 
     tox_callback_friend_lossless_packet(tox, parse_lossless_packet);
 
@@ -910,6 +911,7 @@ int do_server_loop()
         TOX_CONNECTION tmp_isconnected = 0;
         uint32_t tox_do_interval_ms;
         int select_rv = 0;
+        sent_data = 0;
 
 	/* Let tox do its stuff */
 	tox_iterate(tox, NULL);
@@ -985,6 +987,7 @@ int do_server_loop()
                         frame->connid = tun->connid;
                         frame->data_length = 0;
                         send_frame(frame, data);
+                        sent_data = 1;
 
                         tunnel_delete(tun);
                                             
@@ -1001,6 +1004,7 @@ int do_server_loop()
                         frame->connid = tun->connid;
                         frame->data_length = nbytes;
                         send_frame(frame, tox_packet_buf);
+                        sent_data = 1;
                     }
                 }
             }
@@ -1010,7 +1014,7 @@ int do_server_loop()
         ms_start = 1000 * tv_start.tv_sec + tv_start.tv_usec/1000;
         ms_end = 1000 * tv_end.tv_sec + tv_end.tv_usec/1000;
         
-        if(ms_end - ms_start < tox_do_interval_ms)
+        if(!sent_data && (ms_end - ms_start < tox_do_interval_ms))
         {
             /*log_printf(L_DEBUG, "Sleeping for %d ms extra to prevent high CPU usage\n", (tox_do_interval_ms - (ms_end - ms_start)));*/
             usleep((tox_do_interval_ms - (ms_end - ms_start)) * 1000);
