@@ -40,4 +40,4 @@ On the client:
 
 Based on [Ben Martin's article](https://www.linux.com/news/software/developer/17942-socat-the-general-bidirectional-pipe-handler)
 
-I've also heard about a new program called [ToxVPN](https://github.com/cleverca22/toxvpn), who knows - maybe it does a better job?
+I've also heard about a new program called [ToxVPN](https://github.com/cleverca22/toxvpn), who knows - maybe it does a better job? And more recently someone created [toxtun](http://toxtun.jschwab.org/), slowclap.gif for the creative choice of name.
