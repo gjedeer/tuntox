@@ -1,3 +1,5 @@
+#include <tox/tox.h>
+
 #define L_ERROR 	3
 #define L_WARNING	4
 #define L_NOTICE	5
@@ -10,9 +12,12 @@
 void log_printf(int level, const char *fmt, ...);
 void log_init(void);
 void log_close(void);
+void on_tox_log(Tox *tox, TOX_LOG_LEVEL level, const char *file, uint32_t line, const char *func,
+		const char *message, void *user_data);
 
 extern int min_log_level;
 extern int use_syslog;
+extern int log_tox_trace;
 
 #define d(x) log_printf(L_DEBUG, "%s:%d %s", __FILE__, __LINE__, #x);
 

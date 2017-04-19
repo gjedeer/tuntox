@@ -1,5 +1,5 @@
 SOURCES = $(wildcard *.c)
-DEPS=libsodium toxcore
+DEPS=libsodium toxcore libevent_pthreads
 CC=gcc
 CFLAGS=-g -Wall #-std=c99
 CFLAGS += $(shell pkg-config --cflags $(DEPS))

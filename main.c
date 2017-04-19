@@ -28,6 +28,13 @@ int client_pipe_mode = 0;
 /* Remote Tox ID in client mode */
 uint8_t *remote_tox_id = NULL;
 
+/* Tox TCP relay port */
+long int tcp_relay_port = 0;
+
+/* UDP listen ports */
+long int udp_start_port = 0;
+long int udp_end_port = 0;
+
 /* Directory with config and tox save */
 char config_path[500] = "/etc/tuntox/";
 
@@ -1182,7 +1189,9 @@ void help()
     fprintf(stderr, "                  mode\n");
     fprintf(stderr, "    -s <secret> - shared secret used for connection authentication (max\n");
     fprintf(stderr, "                  %u characters)\n", TOX_MAX_FRIEND_REQUEST_LENGTH-1);
-    fprintf(stderr, "    -d          - debug mode\n");
+	fprintf(stderr, "    -t <port>   - set TCP relay port (0 disables TCP relaying)\n");
+	fprintf(stderr, "    -u <port>:<port> - set Tox UDP port range\n");
+    fprintf(stderr, "    -d          - debug mode (use twice to display toxcore log too)\n");
     fprintf(stderr, "    -q          - quiet mode\n");
     fprintf(stderr, "    -S          - send output to syslog instead of stderr\n");
     fprintf(stderr, "    -D          - daemonize (fork) and exit (implies -S)\n");
@@ -1201,10 +1210,15 @@ int main(int argc, char *argv[])
     size_t save_size = 0;
     uint8_t *save_data = NULL;
     allowed_toxid *allowed_toxid_obj = NULL;
+	
+	srand(time(NULL));
+	tcp_relay_port = 1024 + (rand() % 64511);
+	udp_start_port = 1024 + (rand() % 64500);
+	udp_end_port = udp_start_port + 10;
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:s:f:P:dqhSF:DU:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:s:f:P:dqhSF:DU:t:u:")) != -1)
     {
         switch(oc)
         {
@@ -1289,7 +1303,19 @@ int main(int argc, char *argv[])
                 strncpy(shared_secret, optarg, TOX_MAX_FRIEND_REQUEST_LENGTH-1);
                 break;
             case 'd':
-                min_log_level = L_DEBUG;
+				if(min_log_level == L_DEBUG2)
+				{
+					log_tox_trace = 1;
+				}
+				if(min_log_level != L_DEBUG && min_log_level != L_DEBUG2) 
+				{
+	                min_log_level = L_DEBUG;
+				}
+				else
+				{
+					min_log_level = L_DEBUG2;
+				}
+
                 break;
             case 'q':
                 min_log_level = L_ERROR;
@@ -1307,6 +1333,42 @@ int main(int argc, char *argv[])
             case 'U':
                 daemon_username = optarg;
                 break;
+			case 't':
+				errno = 0;
+				tcp_relay_port = strtol(optarg, NULL, 10);
+				if(errno != 0 || tcp_relay_port < 0 || tcp_relay_port > 65535)
+				{
+					tcp_relay_port = 1024 + (rand() % 64511);
+					log_printf(L_WARNING, "Ignored -t %s: TCP port number needs to be a number between 0 and 65535.");
+				}
+				break;
+			case 'u':
+				{ /* TODO make a function in util.h */
+				char *sport;
+				char *eport;
+
+				sport = strtok(optarg, ":");
+				eport = strtok(NULL, ":");
+				if(!sport || !eport)
+				{
+					log_printf(L_WARNING, "Ignored -u %s: wrong format");
+				}
+				else
+				{
+					errno = 0;
+					udp_start_port = strtol(sport, NULL, 10);
+					udp_end_port = strtol(eport, NULL, 10);
+					if(errno != 0 || udp_start_port < 1 || udp_start_port > 65535 || \
+					   udp_end_port < 1 || udp_end_port > 65535)
+					{
+						log_printf(L_WARNING, "Ignored -u %s: ports need to be integers between 1 and 65535");
+						udp_start_port = 1024 + (rand() % 64500);
+						udp_end_port = udp_start_port + 10;
+					}
+
+				}
+				}
+				break;
             case '?':
             case 'h':
             default:
@@ -1353,6 +1415,23 @@ int main(int argc, char *argv[])
 
     /* Bootstrap tox */
     tox_options_default(&tox_options);
+	if(min_log_level >= L_DEBUG2)
+	{
+		tox_options.log_callback = on_tox_log;
+	}
+	tox_options.udp_enabled = 1;
+	tox_options.local_discovery_enabled = 1;
+	tox_options.tcp_port = tcp_relay_port;
+	tox_options.start_port = udp_start_port;
+	tox_options.end_port = udp_end_port;
+	tox_options.hole_punching_enabled = 1;
+
+	log_printf(L_INFO, "Using %d for TCP relay port and %d-%d for UDP", 
+		tox_options.tcp_port,
+		tox_options.start_port,
+		tox_options.end_port
+	);
+
     if((!client_mode) || load_saved_toxid_in_client_mode)
     {
         save_size = load_save(&save_data);

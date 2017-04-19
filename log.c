@@ -18,6 +18,12 @@ int min_log_level = 666;
  */
 int use_syslog = 0;
 
+/*
+ * 0: don't display toxcore TRACE messages
+ * 1: display all toxcore messages
+ */
+int log_tox_trace = 0;
+
 /* Turn log level number to a printable string */
 char *log_printable_level(int level)
 {
@@ -33,6 +39,8 @@ char *log_printable_level(int level)
             return "INFO";
         case L_DEBUG:
             return "DEBUG";
+        case L_DEBUG2:
+            return "DEBUG2";
     }
     return "UNKNOWN";
 }
@@ -110,4 +118,39 @@ void log_test(void)
 
     dp(&i);
     ds(x);
+}
+
+static const char *tox_log_level_name(TOX_LOG_LEVEL level)
+{
+    switch (level) {
+        case TOX_LOG_LEVEL_TRACE:
+            return "TRACE";
+
+        case TOX_LOG_LEVEL_DEBUG:
+            return "DEBUG";
+
+        case TOX_LOG_LEVEL_INFO:
+            return "INFO";
+
+        case TOX_LOG_LEVEL_WARNING:
+            return "WARNING";
+
+        case TOX_LOG_LEVEL_ERROR:
+            return "ERROR";
+    }
+}
+
+void on_tox_log(Tox *tox, TOX_LOG_LEVEL level, const char *path, uint32_t line, const char *func,
+		const char *message, void *user_data)
+{
+    uint32_t index = user_data ? *(uint32_t *)user_data : 0;
+    const char *file = strrchr(path, '/');
+
+	if(level == TOX_LOG_LEVEL_TRACE && !log_tox_trace)
+	{
+		return;
+	}
+
+    file = file ? file + 1 : path;
+    log_printf(L_DEBUG2, "[#%d] %s %s:%d\t%s:\t%s\n", index, tox_log_level_name(level), file, line, func, message);
 }
