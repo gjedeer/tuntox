@@ -23,7 +23,7 @@ before_script:
     # toxcore
   - git clone https://github.com/TokTok/c-toxcore.git
   - cd c-toxcore
-  - cmake .
+  - cmake . -DBUILD_TOXAV=OFF
   - make -j3
   - sudo make install
   - sudo ldconfig
