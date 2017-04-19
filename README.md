@@ -8,7 +8,7 @@ Tuntox is a single binary which may run in client mode or server mode. As a rule
 
 If you don't know what Tox is - it's an instant messenger protocol which is fully P2P, supports audio/video calls and file transfers. Unlike Skype it's fully open and unlike, say, XMPP - the calls and file transfers actually work. Go download a client from http://utox.org/ or read more at https://tox.chat/
 
-[![Coverity Scan Build Status](https://scan.coverity.com/projects/5690/badge.svg)](https://scan.coverity.com/projects/5690)
+[![Coverity Scan Build Status](https://scan.coverity.com/projects/5690/badge.svg)](https://scan.coverity.com/projects/5690) [![Travis Build Status](https://travis-ci.org/gjedeer/tuntox.svg?branch=master)](https://travis-ci.org/gjedeer/tuntox) 
 
 ## Binary
 

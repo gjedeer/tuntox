@@ -28,7 +28,7 @@ before_script:
   - sudo make install
   - sudo ldconfig
   - cd ..
-  - sudo apt-get install cscope
+  - sudo apt-get install cscope python-jinja2 python-requests
   - pushd .
   - sudo pip install jinja2 requests
 
