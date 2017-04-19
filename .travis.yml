@@ -28,9 +28,12 @@ before_script:
   - sudo make install
   - sudo ldconfig
   - cd ..
-  - sudo apt-get install cscope python-jinja2 python-requests
+  - sudo apt-get install cscope python-jinja2 python-requests python-virtualenv
   - pushd .
   - sudo pip install jinja2 requests
+  - virtualenv venv
+  - venv/bin/pip install jinja2 requests
+  - source venv/bin/activate
 
 script:
   - popd
