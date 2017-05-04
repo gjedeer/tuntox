@@ -662,7 +662,7 @@ int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_nu
         log_printf(L_ERROR, "Could not allocate memory for tunnel request packet\n");
         exit(1);
     }
-    strcpy((char *)data+PROTOCOL_BUFFER_OFFSET, remote_host);
+    memcpy((char *)data+PROTOCOL_BUFFER_OFFSET, remote_host, strlen(remote_host));
 
     frame->friendnumber = friend_number;
     frame->packet_type = PACKET_TYPE_REQUESTTUNNEL;

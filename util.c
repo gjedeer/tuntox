@@ -38,7 +38,7 @@ void to_hex(char_t *a, const char_t *p, int size)
             *a++ = c  - 10 + 'A';
         }
     }
-    a = '\0';
+    *a = '\0';
 }
 
 /* From utox/util.c */
