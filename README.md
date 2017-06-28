@@ -68,7 +68,7 @@ The Tuntox server generates a new Tox ID on every startup, or saves its private 
 
 Therefore, posession of the server's Tox ID and a secret should be considered equivalent to posession of an Unix account with SSH access. Tuntox does not implement remote shell capability, but it is possible that it's exploitable.
 
-PSK authentication is optional - it's only enabled when -s switch is present on server side. PSK is sent as Tox friend request message - as far as the author understands libtoxcore code, it's encrypted using server's public EC key.
+PSK authentication is optional but recommended - it's only enabled when -s switch is present on server side or the TUNTOX_SHARED_SECRET environment variable is set. PSK is sent as Tox friend request message - as far as the author understands libtoxcore code, it's encrypted using server's public EC key.
 
 The Tuntox Server can optionally allow only whitelisted ToxIDs. Supply *-i yourallowedtoxid* one time or more to add a ToxID to the whitelist. Note: The default client behavior is to generate a new ToxID for every run (because author thinks it's a nice privacy feature). You will want to use the -C switch in client to force reading a saved identity from tox_save.
 
