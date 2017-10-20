@@ -413,11 +413,11 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
     // check rules
     if (rules_policy == VALIDATE && nrules > 0 ) {
         
-        rule rtmp, *found = NULL;
-        rtmp.host = hostname;
-        rtmp.port = port;
+        rule temp_rule, *found = NULL;
+        temp_rule.host = hostname;
+        temp_rule.port = port;
         
-        LL_SEARCH(rules, found, &rtmp, rule_cmp);
+        LL_SEARCH(rules, found, &temp_rule, rule_cmp);
         if(!found)
         {
             log_printf(L_WARNING, "Rejected, request not in rules\n");
