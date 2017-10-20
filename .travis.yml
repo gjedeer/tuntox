@@ -6,7 +6,7 @@ before_script:
   #installing libsodium, needed for Core
   - git clone git://github.com/jedisct1/libsodium.git > /dev/null
   - cd libsodium
-  - git checkout tags/1.0.0 > /dev/null
+  - git checkout tags/1.0.15 > /dev/null
   - ./autogen.sh > /dev/null
   - ./configure > /dev/null
   - make check -j3 > /dev/null
@@ -18,7 +18,7 @@ before_script:
   #creating libraries links and updating cache
   - sudo ldconfig > /dev/null
   #installing check, needed for unit tests
-  - sudo apt-get install check cmake python-pip cscope
+  - sudo apt-get install check cmake python-pip cscope libevent-dev libevent-pthreads-2.1
   - cd ..
     # toxcore
   - git clone https://github.com/TokTok/c-toxcore.git
