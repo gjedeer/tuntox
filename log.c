@@ -138,6 +138,8 @@ static const char *tox_log_level_name(TOX_LOG_LEVEL level)
         case TOX_LOG_LEVEL_ERROR:
             return "ERROR";
     }
+
+	return "UNKNOWN";
 }
 
 void on_tox_log(Tox *tox, TOX_LOG_LEVEL level, const char *path, uint32_t line, const char *func,
