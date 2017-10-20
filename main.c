@@ -1181,7 +1181,7 @@ void help()
     fprintf(stderr, "    -i <toxid>  - remote point Tox ID\n");
     fprintf(stderr, "    -L <localport>:<remotehostname>:<remoteport>\n");
     fprintf(stderr, "                - forward <remotehostname>:<remoteport> to 127.0.0.1:<localport>\n");
-    fprintf(stderr, "    -P <remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to\n");
+    fprintf(stderr, "    -W <remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to\n");
     fprintf(stderr, "                                       stdin/stdout (SSH ProxyCommand mode)\n");
     fprintf(stderr, "    -p          - ping the server from -i and exit\n");
     fprintf(stderr, "  Common:\n");
@@ -1237,13 +1237,13 @@ int main(int argc, char *argv[])
                 }
                 log_printf(L_DEBUG, "Forwarding remote port %d to local port %d\n", remote_port, local_port);
                 break;
-            case 'P':
+            case 'W':
                 /* Pipe forwarding */
                 client_mode = 1;
                 client_pipe_mode = 1;
                 if(parse_pipe_port_forward(optarg, &remote_host, &remote_port) < 0)
                 {
-                    log_printf(L_ERROR, "Invalid value for -P option - use something like -P 127.0.0.1:22\n");
+                    log_printf(L_ERROR, "Invalid value for -W option - use something like -W 127.0.0.1:22\n");
                     exit(1);
                 }
                 if(min_log_level == L_UNSET)

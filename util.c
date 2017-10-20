@@ -114,7 +114,7 @@ int parse_local_port_forward(char *string, int *local_port, char **hostname, int
     return 0;
 }
 
-/* Parse the -P parameter */
+/* Parse the -W parameter */
 /* 0 = success */
 int parse_pipe_port_forward(char *string, char **hostname, int *remote_port)
 {

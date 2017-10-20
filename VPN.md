@@ -8,7 +8,7 @@ On the server (where tuntox is already running):
 
 On the client:
 
-    socat -d -d TUN:10.20.30.40/24,up 'SYSTEM:./tuntox -P 127.0.0.1@9876 -i 86e70ffe9f835b12667d296f2df9c307ba1aff06'
+    socat -d -d TUN:10.20.30.40/24,up 'SYSTEM:./tuntox -W 127.0.0.1@9876 -i 86e70ffe9f835b12667d296f2df9c307ba1aff06'
 
 Viola, you have a point-to-point VPN. On client:
 
@@ -28,7 +28,7 @@ Also: inefficient, insecure (requires PermitRootLogin yes on server).
 
 On the client:
 
-    socat -d -d TUN:10.20.30.40/24,up 'SYSTEM:ssh root@localhost -o ProxyCommand=\"./tuntox -P "127.0.0.1:22" -d -i 86e70ffe9f835b12667d296f2df9c307ba1aff06\" socat -d -d  - "TUN:10.20.30.41/24,up"'
+    socat -d -d TUN:10.20.30.40/24,up 'SYSTEM:ssh root@localhost -o ProxyCommand=\"./tuntox -W "127.0.0.1:22" -d -i 86e70ffe9f835b12667d296f2df9c307ba1aff06\" socat -d -d  - "TUN:10.20.30.41/24,up"'
 
     # ping 10.20.30.41
     PING 10.20.30.41 (10.20.30.41) 56(84) bytes of data.

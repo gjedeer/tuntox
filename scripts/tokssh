@@ -29,9 +29,9 @@ then
 # last argument is user@toxid
 	user=${arruserhost[0]}
 	toxid=${arruserhost[1]}
-	ssh -o ProxyCommand="tuntox -i $toxid -P 127.0.0.1:%p $secret" $args $user@localhost
+	ssh -o ProxyCommand="tuntox -i $toxid -W 127.0.0.1:%p $secret" $args $user@localhost
 else
 # last argument is just toxid
-	ssh -o ProxyCommand="tuntox -i $userhost -P 127.0.0.1:%p $secret" $args localhost
+	ssh -o ProxyCommand="tuntox -i $userhost -W 127.0.0.1:%p $secret" $args localhost
 fi
 

@@ -54,7 +54,7 @@ The -L switch works (almost) the same way it does in SSH. For the uninitiated, -
 
 Alternatively, SSH ProxyCommand mode works too:
 
-	ssh -o ProxyCommand='./tuntox -i <ToxID> -P localhost:22' gdr@localhost
+	ssh -o ProxyCommand='./tuntox -i <ToxID> -W localhost:22' gdr@localhost
 
 Fun stuff: [VPN over Tox](VPN.md)
 
