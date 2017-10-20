@@ -1,4 +1,4 @@
-* Install c-toxcore (libtoxav and the DNS client are not required) https://github.com/TokTok/c-toxcore/blob/master/INSTALL.md
+* Install c-toxcore (libtoxav and the DNS client are not required) https://github.com/TokTok/c-toxcore/blob/master/INSTALL.md#build-manually
 * git clone https://github.com/gjedeer/tuntox.git
 * cd tuntox
 * make
@@ -8,6 +8,8 @@ The makefile creates a static binary by default. If you're not a fan of static b
 One reason to do so may be if you'd like to resolve hostnames on the tuntox server (invoke client with `-L 80:reddit.com:80` instead of `-L 80:198.41.208.138:80`). 
 
 Static linking breaks hostname resolution, but IMHO the pros overweight the cons.
+
+c-toxcore is the only direct dependency. c-toxcore requires libsodium and libevent_pthreads at the time of writing this, please refer to their install instructions for the current dependencies.
 
 ## MacOS build
 Basically the same as above but:
