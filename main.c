@@ -1249,7 +1249,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:s:f:P:dqhSF:DU:t:u:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:s:f:W:dqhSF:DU:t:u:")) != -1)
     {
         switch(oc)
         {
