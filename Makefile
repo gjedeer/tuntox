@@ -14,9 +14,10 @@ INCLUDES = $(wildcard *.h)
 # Targets
 all: tuntox
 
-gitversion.h: .git/HEAD .git/index
-	@echo "  GEN   $@"
-	@echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@
+gitversion.h: FORCE
+	@if [ -f .git/HEAD ] ; then echo "  GEN   $@"; echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@; fi
+
+FORCE:
 
 tox_bootstrap.h: 
 	python generate_tox_bootstrap.py 
