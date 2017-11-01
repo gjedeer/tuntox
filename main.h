@@ -57,6 +57,11 @@ typedef struct tunnel_t {
 	UT_hash_handle hh;
 } tunnel;
 
+typedef struct tunnel_list_t {
+    tunnel *tun;
+    struct tunnel_list_t *next;
+} tunnel_list;
+
 typedef struct allowed_toxid {
 	uint8_t toxid[TOX_ADDRESS_SIZE];
 	struct allowed_toxid *next;

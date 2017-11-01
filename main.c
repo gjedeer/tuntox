@@ -71,6 +71,10 @@ fd_set master_server_fds;
 /* We keep two hash tables: one indexed by sockfd and another by "connection id" */
 tunnel *by_id = NULL;
 
+/* Tunnels need to be delete safely, outside FD_ISSET polling */
+/* See: tunnel_queue_delete() */
+tunnel_list *tunnels_to_delete = NULL;
+
 /* Highest used fd + 1 for select() */
 int select_nfds = 4;
 
@@ -144,9 +148,10 @@ tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber)
     return t;
 }
 
+/* Please use tunnel_queue_delete() instead */
 void tunnel_delete(tunnel *t)
 {
-    log_printf(L_INFO, "Deleting tunnel #%d\n", t->connid);
+    log_printf(L_INFO, "Deleting tunnel #%d ptr %p\n", t->connid, t);
     if(t->sockfd)
     {
         close(t->sockfd);
@@ -154,6 +159,17 @@ void tunnel_delete(tunnel *t)
     }
     HASH_DEL( by_id, t );
     free(t);
+}
+
+void tunnel_queue_delete(tunnel *t)
+{
+    tunnel_list *tunnel_list_entry = NULL;
+
+    log_printf(L_DEBUG2, "Queued deleting tunnel #%d ptr %p\n", t->connid, t);
+
+    tunnel_list_entry = calloc(sizeof(tunnel_list), 1);
+    tunnel_list_entry->tun = t;
+    LL_APPEND(tunnels_to_delete, tunnel_list_entry);
 }
 
 /* bootstrap to dht with bootstrap_nodes */
@@ -342,7 +358,7 @@ int send_frame(protocol_frame *frame, uint8_t *data)
 
     if(i > 0 && rv >= 0)
     {
-        log_printf(L_DEBUG, "Packet succeeded at try %d\n", try);
+        log_printf(L_DEBUG, "Packet succeeded at try %d (friend %d tunnel %d)\n", try, frame->friendnumber, frame->connid);
     }
 
     return rv;
@@ -533,7 +549,8 @@ int handle_client_tcp_fin_frame(protocol_frame *rcvd_frame)
         return -1;
     }
     
-    tunnel_delete(tun);
+    log_printf(L_DEBUG2, "Deleting tunnel #%d (%p) in handle_client_tcp_fin_frame(), socket %d", rcvd_frame->connid, tun, tun->sockfd);
+    tunnel_queue_delete(tun);
 
     return 0;
 }
@@ -920,8 +937,8 @@ int do_server_loop()
         int select_rv = 0;
         sent_data = 0;
 
-	/* Let tox do its stuff */
-	tox_iterate(tox, NULL);
+        /* Let tox do its stuff */
+        tox_iterate(tox, NULL);
 
         /* Get the desired sleep time, used in select() later */
         tox_do_interval_ms = tox_iteration_interval(tox);
@@ -947,8 +964,8 @@ int do_server_loop()
 
         fds = master_server_fds;
 
-	/* Poll for data from our client connection */
-	select_rv = select(select_nfds, &fds, NULL, NULL, &tv);
+        /* Poll for data from our client connection */
+        select_rv = select(select_nfds, &fds, NULL, NULL, &tv);
         if(select_rv == -1 || select_rv == 0)
         {
             if(select_rv == -1)
@@ -963,8 +980,14 @@ int do_server_loop()
         }
         else
         {
+            tunnel_list *tunnel_list_entry = NULL, *list_tmp = NULL;
+            tmp = NULL;
+            tun = NULL;
+
+            log_printf(L_DEBUG, "Starting tunnel iteration...");
             HASH_ITER(hh, by_id, tun, tmp)
             {
+                log_printf(L_DEBUG, "Current tunnel: %p", tun);
                 if(FD_ISSET(tun->sockfd, &fds))
                 {
                     int nbytes = recv(tun->sockfd, 
@@ -996,7 +1019,7 @@ int do_server_loop()
                         send_frame(frame, data);
                         sent_data = 1;
 
-                        tunnel_delete(tun);
+                        tunnel_queue_delete(tun);
                                             
                         continue;
                     }
@@ -1014,6 +1037,14 @@ int do_server_loop()
                         sent_data = 1;
                     }
                 }
+            }
+            log_printf(L_DEBUG, "Tunnel iteration done");
+
+            LL_FOREACH_SAFE(tunnels_to_delete, tunnel_list_entry, list_tmp)
+            {
+                tunnel_delete(tunnel_list_entry->tun);
+                LL_DELETE(tunnels_to_delete, tunnel_list_entry);
+                free(tunnel_list_entry);
             }
         }
 
@@ -1218,7 +1249,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:s:f:P:dqhSF:DU:t:u:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:s:f:W:dqhSF:DU:t:u:")) != -1)
     {
         switch(oc)
         {

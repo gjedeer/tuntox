@@ -9,7 +9,7 @@ One reason to do so may be if you'd like to resolve hostnames on the tuntox serv
 
 Static linking breaks hostname resolution, but IMHO the pros overweight the cons.
 
-c-toxcore is the only direct dependency. c-toxcore requires libsodium and libevent_pthreads at the time of writing this, please refer to their install instructions for the current dependencies.
+c-toxcore is the only direct dependency. c-toxcore requires libsodium and libevent_pthreads at the time of writing this, please refer to their install instructions for the current dependencies. Also pkg-config is required.
 
 ## MacOS build
 Basically the same as above but:
