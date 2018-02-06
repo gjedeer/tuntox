@@ -161,9 +161,30 @@ void tunnel_delete(tunnel *t)
     free(t);
 }
 
+int tunnel_in_delete_queue(tunnel *t) 
+{
+    tunnel_list *element;
+
+    LL_FOREACH(tunnels_to_delete, element)
+    {
+        if(element->tun == t)
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 void tunnel_queue_delete(tunnel *t)
 {
     tunnel_list *tunnel_list_entry = NULL;
+
+    if(tunnel_in_delete_queue(t))
+    {
+        log_printf(L_DEBUG2, "Did not queue deleting tunnel #%d ptr %p - already queued\n", t->connid, t);
+        return;
+    }
 
     log_printf(L_DEBUG2, "Queued deleting tunnel #%d ptr %p\n", t->connid, t);
 
