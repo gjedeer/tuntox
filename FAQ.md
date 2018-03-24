@@ -41,6 +41,12 @@ The connection is likely to have worse latency when you see the following:
 2018-03-24 08:57:21: [INFO]     Friend request accepted (A TCP connection has been established (via TCP relay))!
 ```
 
+There's, however, a chance that it will upgrade to UDP after a few minutes:
+
+```
+2018-03-24 10:17:06: [INFO]     Friend connection status changed to: An UDP connection has been established
+```
+
 ## I have a direct UDP connection. Why isn't my connection faster?
 
 Wait until https://github.com/gjedeer/tuntox/issues/41 is implemented. This change should improve speed and latency in the 10 Mbit/s+ range.

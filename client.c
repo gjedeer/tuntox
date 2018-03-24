@@ -33,7 +33,7 @@ int handle_pong_frame()
     secs1 = (1.0 * ping_sent_time.tv_sec) + (1e-9 * ping_sent_time.tv_nsec);
     secs2 = (1.0 * pong_rcvd_time.tv_sec) + (1e-9 * pong_rcvd_time.tv_nsec);
 
-    printf("GOT PONG! Time = %.3fs\n", secs2-secs1);
+    log_printf(L_INFO, "GOT PONG! Time = %.3fs\n", secs2-secs1);
 
     if(ping_mode)
     {
@@ -582,7 +582,7 @@ int do_client_loop(uint8_t *tox_id_str)
                         friend_connection_status = tox_friend_get_connection_status(tox, friendnumber, &friend_query_error);
                         if(friend_query_error != TOX_ERR_FRIEND_QUERY_OK)
                         {
-                            log_printf(L_DEBUG, "tox_friend_get_connection_status: error %u", friend_query_error);
+                            log_printf(L_DEBUG, "tox_friend_get_connection_status: error %u\n", friend_query_error);
                         }
                         else
                         {

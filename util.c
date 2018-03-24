@@ -198,6 +198,7 @@ const char *readable_connection_status(TOX_CONNECTION status)
         case TOX_CONNECTION_UDP:
             return "An UDP connection has been established";
         default:
+            log_printf(L_WARNING, "Received unknown connection status %d\n", (int)status);
             return "Unknown connection status";
     }
 }
