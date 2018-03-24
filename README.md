@@ -81,3 +81,7 @@ Sorry about GPLv3 - both toxcore and utox (from which I borrowed some code) are 
 Thank you to the toxcore and utox developers without whom this program would never exist.
 
 Thank you Mr_4551 for your help and motivation.
+
+## FAQ
+
+[yes, there is one](FAQ.md)
