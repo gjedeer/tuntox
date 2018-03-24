@@ -1526,10 +1526,17 @@ int main(int argc, char *argv[])
 
     if(client_mode)
     {
+        uint8_t dht_key[TOX_PUBLIC_KEY_SIZE];
+        char_t readable_dht_key[2 * TOX_PUBLIC_KEY_SIZE + 1];
+
         tox_self_get_address(tox, tox_id);
         id_to_string(tox_printable_id, tox_id);
         tox_printable_id[TOX_ADDRESS_SIZE * 2] = '\0';
         log_printf(L_DEBUG, "Generated Tox ID: %s\n", tox_printable_id);
+
+        tox_self_get_dht_id(tox, dht_key);
+        to_hex(readable_dht_key, dht_key, TOX_PUBLIC_KEY_SIZE);
+        log_printf(L_DEBUG, "DHT key: %s\n", readable_dht_key);
 
         if(!remote_tox_id)
         {
@@ -1540,6 +1547,9 @@ int main(int argc, char *argv[])
     }
     else
     {
+        uint8_t dht_key[TOX_PUBLIC_KEY_SIZE];
+        char_t readable_dht_key[2 * TOX_PUBLIC_KEY_SIZE + 1];
+
         write_save(tox);
 
         if(!use_shared_secret)
@@ -1552,6 +1562,10 @@ int main(int argc, char *argv[])
         id_to_string(tox_printable_id, tox_id);
         tox_printable_id[TOX_ADDRESS_SIZE * 2] = '\0';
         log_printf(L_INFO, "Using Tox ID: %s\n", tox_printable_id);
+
+        tox_self_get_dht_id(tox, dht_key);
+        to_hex(readable_dht_key, dht_key, TOX_PUBLIC_KEY_SIZE);
+        log_printf(L_DEBUG, "DHT key: %s\n", readable_dht_key);
 
         tox_callback_friend_request(tox, accept_friend_request);
         do_server_loop();
