@@ -360,6 +360,7 @@ int do_client_loop(uint8_t *tox_id_str)
                     else
                     {
                         last_friend_connection_status_received = time(NULL);
+                        last_friend_connection_status = friend_connection_status;
 
                         if(friend_connection_status != TOX_CONNECTION_NONE)
                         {
@@ -575,8 +576,25 @@ int do_client_loop(uint8_t *tox_id_str)
 
                     fds = client_master_fdset;
 
-                    if(time(NULL) - last_friend_connection_status_received > 60)
+                    if(time(NULL) - last_friend_connection_status_received > 15)
                     {
+                        TOX_CONNECTION friend_connection_status;
+                        friend_connection_status = tox_friend_get_connection_status(tox, friendnumber, &friend_query_error);
+                        if(friend_query_error != TOX_ERR_FRIEND_QUERY_OK)
+                        {
+                            log_printf(L_DEBUG, "tox_friend_get_connection_status: error %u", friend_query_error);
+                        }
+                        else
+                        {
+                            if(friend_connection_status != last_friend_connection_status)
+                            {
+                                const char* status = readable_connection_status(friend_connection_status);
+                                log_printf(L_INFO, "Friend connection status changed to: %s\n", status);
+                            }
+
+                            last_friend_connection_status_received = time(NULL);
+                            last_friend_connection_status = friend_connection_status;
+                        }
                     }
                 }
                 break;
