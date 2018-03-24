@@ -260,6 +260,8 @@ int do_client_loop(uint8_t *tox_id_str)
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     unsigned char tox_id[TOX_ADDRESS_SIZE];
     uint32_t friendnumber = 0;
+    TOX_CONNECTION last_friend_connection_status = TOX_CONNECTION_NONE;
+    time_t last_friend_connection_status_received = 0;
     struct timeval tv;
     fd_set fds;
     static time_t invitation_sent_time = 0;
@@ -357,6 +359,8 @@ int do_client_loop(uint8_t *tox_id_str)
                     }
                     else
                     {
+                        last_friend_connection_status_received = time(NULL);
+
                         if(friend_connection_status != TOX_CONNECTION_NONE)
                         {
                             const char* status = readable_connection_status(friend_connection_status);
@@ -570,6 +574,10 @@ int do_client_loop(uint8_t *tox_id_str)
                     }
 
                     fds = client_master_fdset;
+
+                    if(time(NULL) - last_friend_connection_status_received > 60)
+                    {
+                    }
                 }
                 break;
             case CLIENT_STATE_SHUTDOWN:
