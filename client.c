@@ -576,6 +576,9 @@ int do_client_loop(uint8_t *tox_id_str)
 
                     fds = client_master_fdset;
 
+                    /* Check friend connection status changes */
+                    /* TODO: learned about tox_friend_connection_status_cb after writing this... */
+                    /* TODO: also check friend status tox_callback_friend_status */
                     if(time(NULL) - last_friend_connection_status_received > 15)
                     {
                         TOX_CONNECTION friend_connection_status;
