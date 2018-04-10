@@ -1,37 +1,87 @@
 #!/bin/bash
+set -e
+function help {
+    cat <<EOF
+A simple wrapper to use like SSH
 
-# 
-# A simple wrapper to use like SSH
-# Usage:
-# tokssh user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
-# tokssh 5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
-# tokssh -p 2222 -o ForwardAgent=yes user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
-# tokssh user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054 -s TuNToXSeCreT
-#
+Usage:
+    tokssk [ssh options] [user@]address [-s secret]
+
+where
+
+    ssh options:   options to pass to ssh process
+    user:          login on remote host
+    address:       either a ToxID or a hostname. ~/.tuntox/hosts is read to map
+                hostname to ToxID. hostname MUST resolve to 127.0.0.1
+
+    -s             optional secret to use to connect to tuntox server
+
+examples:
+    tokssh user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
+    tokssh 5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
+    tokssh -p 2222 -o ForwardAgent=yes user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
+    tokssh user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054 -s TuNToXSeCreT
+
+files:
+    ~/.tuntox/hosts maps hostname to ToxID and optional secret.
+    format is
+    hostname    ToxID   secret(optional)
+EOF
+}
+
+strargs="'$*'"
+if [ -z "${strargs##*-h*}" ] || [ -z "${strargs##*--help*}" ] ;then
+    help
+    exit
+fi
 
 array=( $@ )
 len=${#array[@]}
-userhost=${array[$len-1]}
-args=${array[@]:0:$len-1}
 
-if [ "${array[$len-2]}" == "-s" ]
-then
-        secret="${array[@]:$len-2:$len-1}"
-        len=$[len-2]
+if [ $len -lt 1 ]; then
+    help
+    exit
 fi
 
 
+# look for secret and remvove it from args
+if [ $len -gt 2 ] && [ "${array[$len-2]}" == "-s" ]
+then
+    secret="${array[@]:$len-2:$len-1}"
+    len=$[len-2]
+fi
+
+userhost=${array[$len-1]}
+args=${array[@]:0:$len-1}
+
+# check for user@id
 arruserhost=(${userhost//@/ })
 arruserhostlen=${#arruserhost[@]}
 
 if [ $arruserhostlen -gt 1 ]
 then
-# last argument is user@toxid
-	user=${arruserhost[0]}
-	toxid=${arruserhost[1]}
-	ssh -o ProxyCommand="tuntox -i $toxid -W 127.0.0.1:%p $secret" $args $user@localhost
+    # last argument is user@toxid
+    user="${arruserhost[0]}@"
+    toxid=${arruserhost[1]}
+    hostname=localhost
 else
-# last argument is just toxid
-	ssh -o ProxyCommand="tuntox -i $userhost -W 127.0.0.1:%p $secret" $args localhost
+    # last argument is just toxid
+    user=""
+    toxid=$userhost
+    hostname=localhost
 fi
 
+#search toxid in ~/.tuntox/hosts and map it to toxid
+if [ -f ~/.tuntox/hosts ]; then
+    while read c_hostname c_toxid c_secret; do
+        if [ "${c_hostname:0:1}" != "#" ] && [ "$c_hostname" == "$toxid" ]; then
+            toxid="$c_toxid"
+            if [ "$secret" == "" ]; then
+                secret="-s $c_secret"
+            fi
+            break
+        fi
+    done < ~/.tuntox/hosts
+fi
+
+ssh -o ProxyCommand="tuntox -i $toxid -W 127.0.0.1:%p $secret" $args ${user}${hostname}
