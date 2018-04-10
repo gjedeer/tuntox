@@ -5,7 +5,7 @@ function help {
 A simple wrapper to use like SSH
 
 Usage:
-    tokssk [ssh options] [user@]address [-s secret]
+    tokssh [ssh options] [user@]address [-s secret]
 
 where
 
