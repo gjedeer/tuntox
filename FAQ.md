@@ -50,3 +50,7 @@ There's, however, a chance that it will upgrade to UDP after a few minutes:
 ## I have a direct UDP connection. Why isn't my connection faster?
 
 Wait until https://github.com/gjedeer/tuntox/issues/41 is implemented. This change should improve speed and latency in the 10 Mbit/s+ range.
+
+## Is your website a joke?
+
+You're a joke for not using NoScript.
