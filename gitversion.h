@@ -1,1 +1,1 @@
-#define GITVERSION "3b26f4eac390008113ca0d5c0978ed7da19dfa34"
+#define GITVERSION "0.0.9"
