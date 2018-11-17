@@ -244,14 +244,33 @@ int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
         log_printf(L_WARNING, "Friend #%d tried to close tunnel while server is #%d\n", rcvd_frame->friendnumber, tun->friendnumber);
         return -1;
     }
-    
+
+	client_close_tunnel(tun);
+
+    return 0;
+}
+
+/* Delete tunnel and clear client-side fdset */
+int client_close_tunnel(tunnel *tun) 
+{
     if(tun->sockfd)
     {
         FD_CLR(tun->sockfd, &client_master_fdset);
     }
-    tunnel_delete(tun);
 
-    return 0;
+    tunnel_delete(tun);
+}
+
+/* Close and delete all tunnels (when server went offline) */
+int client_close_all_connections()
+{
+	tunnel *tmp = NULL;
+	tunnel *tun = NULL;
+
+	HASH_ITER(hh, by_id, tun, tmp)
+	{
+		client_close_tunnel(tun);
+	}
 }
 
 /* Main loop for the client */
@@ -308,6 +327,7 @@ int do_client_loop(uint8_t *tox_id_str)
                 {
                     uint8_t* data = (uint8_t *)"Hi, fellow tuntox instance!";
                     uint16_t length = sizeof(data);
+					/* https://github.com/TokTok/c-toxcore/blob/acb6b2d8543c8f2ea0c2e60dc046767cf5cc0de8/toxcore/tox.h#L1168 */
                     TOX_ERR_FRIEND_ADD add_error;
 
                     if(use_shared_secret)
@@ -592,7 +612,22 @@ int do_client_loop(uint8_t *tox_id_str)
                             if(friend_connection_status != last_friend_connection_status)
                             {
                                 const char* status = readable_connection_status(friend_connection_status);
-                                log_printf(L_INFO, "Friend connection status changed to: %s\n", status);
+                                log_printf(L_INFO, "Friend connection status changed to: %s (%d)\n", status, friend_connection_status);
+
+								if(friend_connection_status == TOX_CONNECTION_NONE)
+								{
+									/* https://github.com/TokTok/c-toxcore/blob/acb6b2d8543c8f2ea0c2e60dc046767cf5cc0de8/toxcore/tox.h#L1267 */
+									TOX_ERR_FRIEND_DELETE tox_delete_error;
+
+									log_printf(L_WARNING, "Lost connection to server, closing all tunnels and re-adding friend\n");
+									client_close_all_connections();
+									tox_friend_delete(tox, friendnumber, &tox_delete_error);
+									if(tox_delete_error)
+									{
+										log_printf(L_ERROR, "Error when deleting server from friend list: %d\n", tox_delete_error);
+									}
+									state = CLIENT_STATE_INITIAL;
+								}
                             }
 
                             last_friend_connection_status_received = time(NULL);
