@@ -225,6 +225,17 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
     return 0;
 }
 
+/* Delete tunnel and clear client-side fdset */
+void client_close_tunnel(tunnel *tun) 
+{
+    if(tun->sockfd)
+    {
+        FD_CLR(tun->sockfd, &client_master_fdset);
+    }
+
+    tunnel_delete(tun);
+}
+
 /* Handle close-tunnel frame recived from the server */
 int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
 {
@@ -250,19 +261,8 @@ int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
     return 0;
 }
 
-/* Delete tunnel and clear client-side fdset */
-int client_close_tunnel(tunnel *tun) 
-{
-    if(tun->sockfd)
-    {
-        FD_CLR(tun->sockfd, &client_master_fdset);
-    }
-
-    tunnel_delete(tun);
-}
-
 /* Close and delete all tunnels (when server went offline) */
-int client_close_all_connections()
+void client_close_all_connections()
 {
 	tunnel *tmp = NULL;
 	tunnel *tun = NULL;
