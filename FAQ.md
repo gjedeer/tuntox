@@ -61,6 +61,13 @@ The tox config is stored in `/data` and that's where you want to attach your vol
 docker run -e 'TUNTOX_SHARED_SECRET=myassfeelsweird' -v /tmp/tt:/data -it registry.gitlab.com/gjedeer/tuntox:latest
 ```
 
+## Can I run it on Windows?
+
+There's no native Windows version but, in the spirit of "just use Wine" answers, try the following:
+
+* Why don't you install [Docker for Windows](https://docs.docker.com/docker-for-windows/install/) and use the Docker image in Linux Containers mode?
+* [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) works with tuntox binaries too (see Releases tab on Github). To use the smallest amount of disk space, use Alpine Linux instead of Ubuntu (but it works on both). [screenshot](screenshots/wsl.png)
+
 ## Is your website a joke?
 
 You're a joke for not using NoScript.
