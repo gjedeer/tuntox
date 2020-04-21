@@ -1,0 +1,16 @@
+version: "2"
+services:
+  airsonic:
+    image: registry.gitlab.com/gjedeer/tuntox
+    container_name: tuntox
+    environment:
+      - TUNTOX_SHARED_SECRET=myassfeelsweird
+    volumes:
+      - /docker/tuntox:/data
+    ports:
+      - 33446:33446
+      - 33446:33446/udp
+      - 33447:33447/udp
+    restart: always
+
+

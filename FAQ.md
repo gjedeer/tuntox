@@ -51,6 +51,16 @@ There's, however, a chance that it will upgrade to UDP after a few minutes:
 
 Wait until https://github.com/gjedeer/tuntox/issues/41 is implemented. This change should improve speed and latency in the 10 Mbit/s+ range.
 
+## Can I run it with Docker?
+
+I've made a [Docker image](https://gitlab.com/gjedeer/tuntox/container_registry/) by bundling a static build with Alpine Linux, but I don't think I'm going to remember to keep it up to date at all times. There's a [Dockerfile](Dockerfile) and [docker-compose.yaml](scripts/docker-compose.yaml).
+
+The tox config is stored in `/data` and that's where you want to attach your volumes.
+
+```
+docker run -e 'TUNTOX_SHARED_SECRET=myassfeelsweird' -v /tmp/tt:/data -it registry.gitlab.com/gjedeer/tuntox:latest
+```
+
 ## Is your website a joke?
 
 You're a joke for not using NoScript.
