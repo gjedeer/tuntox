@@ -61,6 +61,11 @@ The tox config is stored in `/data` and that's where you want to attach your vol
 docker run -e 'TUNTOX_SHARED_SECRET=myassfeelsweird' -v /tmp/tt:/data -it registry.gitlab.com/gjedeer/tuntox:latest
 ```
 
+The binary is in `/usr/bin/tuntox` (and `/usr/bin/tokssh`):
+```
+docker run -e 'TUNTOX_SHARED_SECRET=myassfeelsweird' -it registry.gitlab.com/gjedeer/tuntox:latest /usr/bin/tuntox -i 1234abc -p
+```
+
 ## Can I run it on Windows?
 
 There's no native Windows version but, in the spirit of "just use Wine" answers, try the following:
