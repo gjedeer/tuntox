@@ -1,0 +1,17 @@
+Source: tuntox
+Section: net
+Priority: optional
+Maintainer: GDR! <gdr@gdr.name>
+Build-Depends: debhelper-compat (= 12), libtoxcore-dev,
+ pkg-config, build-essential, make, libtoxcore-dev,
+ python-jinja2, python-requests
+Standards-Version: 4.5.0
+Homepage: https://gdr.name/tuntox/
+#Vcs-Browser: https://salsa.debian.org/debian/tuntox
+Vcs-Git: https://github.com/gjedeer/tuntox.git
+
+Package: tuntox
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: <insert up to 60 chars description>
+ <insert long description, indented with spaces>

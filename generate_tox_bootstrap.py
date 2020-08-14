@@ -1,5 +1,5 @@
-#!/usr/bin/python
-# pip install jinja2 requests
+#!/usr/bin/python3
+# pip3 install jinja2 requests
 
 import datetime
 import jinja2
@@ -52,7 +52,7 @@ def toxtoc(value):
         Generate 1 line of C code - 16 bytes
         @param value a hex string of length 32 (32 hex chars)
         """
-        if len(value) <> 32:
+        if len(value) != 32:
             raise ValueError('%r is not a 32-char string')
 
         rv = ""
@@ -86,11 +86,11 @@ if __name__ == "__main__":
     for elem in data['nodes']:
         node = {}
         if 'ipv4' not in elem or 'port' not in elem or 'public_key' not in elem:
-            print "SKIPPING", elem
+            print("SKIPPING", elem)
             continue
         
-        if len(elem['public_key']) <> 64:
-            print "Bad public key %s, skipping!" % elem['public_key']
+        if len(elem['public_key']) != 64:
+            print("Bad public key %s, skipping!" % elem['public_key'])
             continue
 
         node['port'] = int(elem['port'])
@@ -102,10 +102,10 @@ if __name__ == "__main__":
         except socket.error:
             # IPv4 is not numeric, let's try resolving
             try:
-                print "RESOLVING", elem['ipv4']
+                print("RESOLVING", elem['ipv4'])
                 node['ipv4'] = socket.gethostbyname(elem['ipv4'])
             except socket.error:
-                print "Could not resolve ipv4: %s, skipping!" % elem['ipv4']
+                print("Could not resolve ipv4: %s, skipping!" % elem['ipv4'])
                 continue
 
         if 'status_udp' in elem and elem['status_udp']:

@@ -9,6 +9,7 @@ DSO_LDFLAGS=-g -pthread -lm -lrt
 DSO_LDFLAGS += $(shell pkg-config --libs $(DEPS))
 OBJECTS=$(SOURCES:.c=.o)
 INCLUDES = $(wildcard *.h)
+PYTHON = /usr/bin/env python3
 
 
 # Targets
@@ -20,7 +21,7 @@ gitversion.h: FORCE
 FORCE:
 
 tox_bootstrap.h: 
-	python generate_tox_bootstrap.py 
+	$(PYTHON) generate_tox_bootstrap.py 
 
 %.o: %.c $(INCLUDES) gitversion.h tox_bootstrap.h
 	@echo "  CC    $@"
