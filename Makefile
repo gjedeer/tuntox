@@ -40,4 +40,7 @@ cscope.out:
 clean:
 	rm -f *.o tuntox cscope.out gitversion.h tox_bootstrap.h
 
+install: tuntox_nostatic
+	cp tuntox_nostatic $(DESTDIR)/bin/tuntox
+
 .PHONY: all clean tuntox
