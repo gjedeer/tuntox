@@ -5,7 +5,7 @@ steps:
 - name: docker
   image: plugins/docker
   settings:
-    repo: foo/bar
+    repo: gdr1/tuntox
     username:
       from_secret: docker_username
     password:
