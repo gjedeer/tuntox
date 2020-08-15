@@ -17,7 +17,7 @@ pipelines:
           - cp ../tuntox_0.0.9-1_amd64.deb ../`cat ../bb_version.txt`_amd64.deb
           - curl -X POST "https://${BITBUCKET_USERNAME}:${BITBUCKET_APP_PASSWORD}@api.bitbucket.org/2.0/repositories/${BITBUCKET_REPO_OWNER}/${BITBUCKET_REPO_SLUG}/downloads" --form files=@"../"`cat ../bb_version.txt`"_amd64.deb"
           - apt -y install docker.io
-          - docker build -t registry.gitlab.com/gjedeer/tuntox .
+          - docker build -t registry.gitlab.com/gjedeer/tuntox -f Dockerfile
 
 
 definitions:
