@@ -727,7 +727,7 @@ static void write_save(Tox *tox)
     data = malloc(size);
     tox_get_savedata(tox, data);
 
-    strncpy((char *)path_real, config_path, sizeof(config_path));
+    strncpy((char *)path_real, config_path, sizeof(path_real));
 
     p = path_real + strlen((char *)path_real);
     memcpy(p, "tox_save", sizeof("tox_save"));
@@ -770,7 +770,7 @@ static size_t load_save(uint8_t **out_data)
     uint32_t size;
     uint8_t path_real[512], *p;
 
-    strncpy((char *)path_real, config_path, sizeof(config_path));
+    strncpy((char *)path_real, config_path, sizeof(path_real));
 
     p = path_real + strlen((char *)path_real);
     memcpy(p, "tox_save", sizeof("tox_save"));
