@@ -39,3 +39,10 @@ Basically the same as above but:
 
 If you'd like to build on Mac do: `make -f Makefile.mac`
 
+# FreeBSD build
+```
+pkg install toxcore
+gcc -I/usr/local/include/ -L/usr/local/lib -o tuntox -lpthread -g -pthread -lm -static -lrt *.c /usr/local/lib/libtoxcore.a -lsodium
+```
+
+If someone knows why the hell pkg-config doesn't find toxcore or sodium on freebsd, please contact me or open a PR.
