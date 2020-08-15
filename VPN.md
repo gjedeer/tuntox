@@ -38,6 +38,6 @@ On the client:
     64 bytes from 10.20.30.41: icmp_seq=4 ttl=64 time=151 ms
     64 bytes from 10.20.30.41: icmp_seq=5 ttl=64 time=50.3 ms
 
-Based on [Ben Martin's article](https://www.linux.com/news/software/developer/17942-socat-the-general-bidirectional-pipe-handler)
+Based on [Ben Martin's article](https://web.archive.org/web/20160102211752/http://www.linux.com/news/software/developer/17942-socat-the-general-bidirectional-pipe-handler)
 
 I've also heard about a new program called [ToxVPN](https://github.com/cleverca22/toxvpn), who knows - maybe it does a better job? And more recently someone created [toxtun](http://toxtun.jschwab.org/), slowclap.gif for the creative choice of name.
