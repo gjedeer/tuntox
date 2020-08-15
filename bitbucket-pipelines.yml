@@ -1,0 +1,20 @@
+image: debian:sid
+pipelines:
+  default:
+    - step:
+        name: Build deb
+        image: debian:sid
+        caches:
+          - apt
+        script:
+          - apt update
+          - apt -y install pkg-config build-essential make libtoxcore-dev dh-make python3-jinja2 python3-requests
+          - dh_make --createorig -s
+          - dpkg-buildpackage -us -uc
+          - ls -l ..
+
+
+definitions:
+  caches:
+    apt: /var/cache/apt
+

@@ -16,11 +16,19 @@ c-toxcore is the only direct dependency. c-toxcore requires libsodium and libeve
 In Debian sid, toxcore is in the main repos so it's very easy to build a deb package.
 
 ```
-apt install pkg-config build-essential make libtoxcore-dev dh-make
+apt install pkg-config build-essential make libtoxcore-dev dh-make git python3-jinja2 python3-requests
 git clone https://github.com/gjedeer/tuntox.git
 cd tuntox
 dh_make --createorig -s
 dpkg-buildpackage -us -uc
+```
+
+It's even easier to just build the binary:
+```
+apt install pkg-config build-essential make libtoxcore-dev git python3-jinja2 python3-requests
+git clone https://github.com/gjedeer/tuntox.git
+cd tuntox
+make
 ```
 
 ## MacOS build
