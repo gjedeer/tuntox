@@ -10,10 +10,14 @@ DSO_LDFLAGS += $(shell pkg-config --libs $(DEPS))
 OBJECTS=$(SOURCES:.c=.o)
 INCLUDES = $(wildcard *.h)
 PYTHON = /usr/bin/env python3
+INSTALL = install -C
+INSTALL_MKDIR = $(INSTALL) -d -m 755
 
+prefix ?= /usr
+bindir ?= $(prefix)/bin
 
 # Targets
-all: tuntox
+all: tuntox tuntox_nostatic
 
 gitversion.h: FORCE
 	@if [ -f .git/HEAD ] ; then echo "  GEN   $@"; echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@; fi
@@ -41,6 +45,7 @@ clean:
 	rm -f *.o tuntox cscope.out gitversion.h tox_bootstrap.h
 
 install: tuntox_nostatic
-	cp tuntox_nostatic $(DESTDIR)/bin/tuntox
+	$(INSTALL_MKDIR) -d $(DESTDIR)$(bindir)
+	cp tuntox_nostatic $(DESTDIR)$(bindir)/tuntox
 
 .PHONY: all clean tuntox
