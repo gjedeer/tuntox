@@ -11,6 +11,18 @@ Static linking breaks hostname resolution, but IMHO the pros overweight the cons
 
 c-toxcore is the only direct dependency. c-toxcore requires libsodium and libevent_pthreads at the time of writing this, please refer to their install instructions for the current dependencies. Also pkg-config is required.
 
+## Debian sid
+
+In Debian sid, toxcore is in the main repos so it's very easy to build a deb package.
+
+```
+apt install pkg-config build-essential make libtoxcore-dev dh-make
+git clone https://github.com/gjedeer/tuntox.git
+cd tuntox
+dh_make --createorig -s
+dpkg-buildpackage -us -uc
+```
+
 ## MacOS build
 Basically the same as above but:
 
