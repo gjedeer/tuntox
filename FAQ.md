@@ -51,6 +51,16 @@ There's, however, a chance that it will upgrade to UDP after a few minutes:
 
 Wait until https://github.com/gjedeer/tuntox/issues/41 is implemented. This change should improve speed and latency in the 10 Mbit/s+ range.
 
+## Are there distribution packages?
+
+In repos:
+
+* [Arch](https://www.archlinux.org/packages/community/x86_64/tuntox/)
+
+Work in progress:
+* [Debian](https://bitbucket.org/gjedeer/tuntox/downloads/)
+* [NixOS](https://github.com/NixOS/nixpkgs/pull/32823)
+
 ## Can I run it with Docker?
 
 I've made a [Docker image](https://gitlab.com/gjedeer/tuntox/container_registry/) by bundling a static build with Alpine Linux, but I don't think I'm going to remember to keep it up to date at all times. There's a [Dockerfile](Dockerfile) and [docker-compose.yaml](scripts/docker-compose.yaml).
@@ -75,4 +85,4 @@ There's no native Windows version but, in the spirit of "just use Wine" answers,
 
 ## Is your website a joke?
 
-You're a joke for not using NoScript.
+You're a joke for not using NoScript. Just disable JS if you don't like the scroller.
