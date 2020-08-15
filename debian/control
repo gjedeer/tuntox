@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: GDR! <gdr@gdr.name>
 Build-Depends: debhelper-compat (= 12), libtoxcore-dev,
  pkg-config, build-essential, make, libtoxcore-dev,
- python-jinja2, python-requests
+ python3-jinja2, python3-requests
 Standards-Version: 4.5.0
 Homepage: https://gdr.name/tuntox/
 #Vcs-Browser: https://salsa.debian.org/debian/tuntox
