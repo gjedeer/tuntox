@@ -63,17 +63,19 @@ Work in progress:
 
 ## Can I run it with Docker?
 
-I've made a [Docker image](https://gitlab.com/gjedeer/tuntox/container_registry/) by bundling a static build with Alpine Linux, but I don't think I'm going to remember to keep it up to date at all times. There's a [Dockerfile](Dockerfile) and [docker-compose.yaml](scripts/docker-compose.yaml).
+ATTENTION - DOCKER IMAGE MOVED FROM GITLAB TO DOCKERHUB ON 2020-08-15
+
+I've made a [Docker image](https://hub.docker.com/r/gdr1/tuntox) by bundling a static build with Alpine Linux, it's built automatically by Dockerhub every time I push code to Github. There's a [Dockerfile](Dockerfile) and [docker-compose.yaml](scripts/docker-compose.yaml) if you want to build the image yourself.
 
 The tox config is stored in `/data` and that's where you want to attach your volumes.
 
 ```
-docker run -e 'TUNTOX_SHARED_SECRET=myassfeelsweird' -v /tmp/tt:/data -it registry.gitlab.com/gjedeer/tuntox:latest
+docker run -e 'TUNTOX_SHARED_SECRET=myassfeelsweird' -v /tmp/tt:/data -it gdr1/tuntox:latest
 ```
 
 The binary is in `/usr/bin/tuntox` (and `/usr/bin/tokssh`):
 ```
-docker run -e 'TUNTOX_SHARED_SECRET=myassfeelsweird' -it registry.gitlab.com/gjedeer/tuntox:latest /usr/bin/tuntox -i 1234abc -p
+docker run -e 'TUNTOX_SHARED_SECRET=myassfeelsweird' -it gdr1/tuntox:latest /usr/bin/tuntox -i 1234abc -p
 ```
 
 ## Can I run it on Windows?
