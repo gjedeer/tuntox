@@ -9,7 +9,7 @@ pipelines:
         script:
           - apt update
           - apt -y install pkg-config build-essential make libtoxcore-dev dh-make python3-jinja2 python3-requests
-          - dh_make --createorig -s
+          - dh_make --createorig -s -p tuntox_0.0.9.`date +%Y%m%d%H%M%S`
           - dpkg-buildpackage -us -uc
           - ls -l ..
 
