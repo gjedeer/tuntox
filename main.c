@@ -1434,6 +1434,12 @@ int main(int argc, char *argv[])
         min_log_level = L_INFO;
     }
 
+    if(client_mode && !remote_tox_id)
+    {
+        log_printf(L_ERROR, "Tox id is required in client mode. Use -i 58435984ABCDEF475...\n");
+        exit(1);
+    }
+
     if(!client_mode && server_whitelist_mode)
     {
         log_printf(L_INFO, "Server in ToxID whitelisting mode - only clients listed with -i can connect");
@@ -1528,28 +1534,6 @@ int main(int argc, char *argv[])
         write_save(tox);
     }
 
-    if(client_mode)
-    {
-        uint8_t dht_key[TOX_PUBLIC_KEY_SIZE];
-        char_t readable_dht_key[2 * TOX_PUBLIC_KEY_SIZE + 1];
-
-        tox_self_get_address(tox, tox_id);
-        id_to_string(tox_printable_id, tox_id);
-        tox_printable_id[TOX_ADDRESS_SIZE * 2] = '\0';
-        log_printf(L_DEBUG, "Generated Tox ID: %s\n", tox_printable_id);
-
-        tox_self_get_dht_id(tox, dht_key);
-        to_hex(readable_dht_key, dht_key, TOX_PUBLIC_KEY_SIZE);
-        log_printf(L_DEBUG, "DHT key: %s\n", readable_dht_key);
-
-        if(!remote_tox_id)
-        {
-            log_printf(L_ERROR, "Tox id is required in client mode. Use -i 58435984ABCDEF475...\n");
-            exit(1);
-        }
-        do_client_loop(remote_tox_id);
-    }
-    else
     {
         uint8_t dht_key[TOX_PUBLIC_KEY_SIZE];
         char_t readable_dht_key[2 * TOX_PUBLIC_KEY_SIZE + 1];
@@ -1569,9 +1553,16 @@ int main(int argc, char *argv[])
         to_hex(readable_dht_key, dht_key, TOX_PUBLIC_KEY_SIZE);
         log_printf(L_DEBUG, "DHT key: %s\n", readable_dht_key);
 
-        tox_callback_friend_request(tox, accept_friend_request);
-        do_server_loop();
-        clear_rules();
+        if (client_mode)
+        {
+            do_client_loop(remote_tox_id);
+        }
+        else
+        {
+            tox_callback_friend_request(tox, accept_friend_request);
+            do_server_loop();
+            clear_rules();
+        }
     }
 
     return 0;
