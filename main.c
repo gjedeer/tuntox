@@ -1524,6 +1524,11 @@ int main(int argc, char *argv[])
 
     do_bootstrap(tox);
 
+    if((!client_mode) || load_saved_toxid_in_client_mode)
+    {
+        write_save(tox);
+    }
+
     if(client_mode)
     {
         uint8_t dht_key[TOX_PUBLIC_KEY_SIZE];
@@ -1549,8 +1554,6 @@ int main(int argc, char *argv[])
     {
         uint8_t dht_key[TOX_PUBLIC_KEY_SIZE];
         char_t readable_dht_key[2 * TOX_PUBLIC_KEY_SIZE + 1];
-
-        write_save(tox);
 
         if(!use_shared_secret)
         {
