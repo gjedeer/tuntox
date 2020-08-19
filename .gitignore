@@ -30,3 +30,7 @@
 
 # tuntox related, not needed in repo
 tuntox
+tuntox_nostatic
+debian/debhelper-build-stamp
+debian/files
+debian/tuntox.substvars
