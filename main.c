@@ -953,7 +953,6 @@ int do_server_loop()
 
     while(1)
     {
-        TOX_CONNECTION tmp_isconnected = 0;
         uint32_t tox_do_interval_ms;
         int select_rv = 0;
         sent_data = 0;
@@ -969,10 +968,9 @@ int do_server_loop()
         gettimeofday(&tv_start, NULL);
 
         /* Check change in connection state */
-        tmp_isconnected = connection_status;
-        if(tmp_isconnected != connected)
+        if(connection_status != connected)
         {
-            connected = tmp_isconnected;
+            connected = connection_status;
             if(connected)
             {
                 log_printf(L_DEBUG, "Connected to Tox network\n");
