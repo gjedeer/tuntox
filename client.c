@@ -281,7 +281,6 @@ int do_client_loop(uint8_t *tox_id_str)
     uint32_t friendnumber = 0;
     TOX_CONNECTION last_friend_connection_status = TOX_CONNECTION_NONE;
     time_t last_friend_connection_status_received = 0;
-	time_t connection_lost_timestamp = 0;
     struct timeval tv;
     fd_set fds;
     static time_t invitation_sent_time = 0;
@@ -618,7 +617,6 @@ int do_client_loop(uint8_t *tox_id_str)
 								if(friend_connection_status == TOX_CONNECTION_NONE)
 								{
 									state = CLIENT_STATE_CONNECTION_LOST;
-									connection_lost_timestamp = time(NULL);
 								}
                             }
 
