@@ -34,3 +34,4 @@ tuntox_nostatic
 debian/debhelper-build-stamp
 debian/files
 debian/tuntox.substvars
+gitversion.h
