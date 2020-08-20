@@ -921,11 +921,28 @@ void handle_connection_status_change(Tox *tox, TOX_CONNECTION p_connection_statu
     log_printf(L_INFO, "Connection status changed: %s", status);
 }
 
+#ifdef LOG_IP_ADDRESS
+void log_friend_ip_address(Tox *tox, uint32_t friendnumber)
+{
+  IP_Port ip_port = tox_friend_get_connection_info(tox, friendnumber);
+  if (net_family_is_unspec(ip_port.ip.family)) return;
+  char ip_str[IP_NTOA_LEN];
+  log_printf(L_INFO, "Friend #%d: IP: %s Port: %u\n",
+             friendnumber,
+             ip_ntoa(&ip_port.ip, ip_str, sizeof(ip_str)),
+             net_ntohs(ip_port.port));
+}
+#endif
+
 void handle_friend_connection_status(Tox *tox, uint32_t friend_number, TOX_CONNECTION connection_status, void *user_data)
 {
     const char *status = NULL;
     status = readable_connection_status(connection_status);
     log_printf(L_INFO, "Friend #%d connection status changed: %s", friend_number, status);
+#ifdef LOG_IP_ADDRESS
+    if(connection_status == TOX_CONNECTION_UDP)
+        log_friend_ip_address(tox, friend_number);
+#endif
     if(client_mode)
     {
         friend_connection_status = connection_status;
