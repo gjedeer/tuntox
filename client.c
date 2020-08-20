@@ -37,7 +37,7 @@ int handle_pong_frame()
 
     if(ping_mode)
     {
-        state = CLIENT_STATE_SEND_PING;
+        state = CLIENT_STATE_SHUTDOWN;
     }
     return 0;
 }
