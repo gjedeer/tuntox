@@ -985,17 +985,14 @@ int do_server_loop()
 
         /* Poll for data from our client connection */
         select_rv = select(select_nfds, &fds, NULL, NULL, &tv);
-        if(select_rv == -1 || select_rv == 0)
+        if(select_rv == -1)
         {
-            if(select_rv == -1)
-            {
-                log_printf(L_DEBUG, "Reading from local socket failed: code=%d (%s)\n",
-                        errno, strerror(errno));
-            }
-            else
-            {
-                log_printf(L_DEBUG2, "Nothing to read...");
-            }
+            log_printf(L_DEBUG, "Reading from local socket failed: code=%d (%s)\n",
+                       errno, strerror(errno));
+        }
+        else if (select_rv == 0)
+        {
+            log_printf(L_DEBUG2, "Nothing to read...");
         }
         else
         {
