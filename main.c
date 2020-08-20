@@ -161,7 +161,7 @@ void tunnel_delete(tunnel *t)
     free(t);
 }
 
-int tunnel_in_delete_queue(tunnel *t) 
+int tunnel_in_delete_queue(tunnel *t)
 {
     tunnel_list *element;
 
@@ -232,7 +232,7 @@ void set_tox_username(Tox *tox)
 /* Get sockaddr, IPv4 or IPv6 */
 void *get_in_addr(struct sockaddr *sa)
 {
-    if (sa->sa_family == AF_INET) 
+    if (sa->sa_family == AF_INET)
     {
         return &(((struct sockaddr_in*)sa)->sin_addr);
     }
@@ -254,7 +254,7 @@ int get_client_socket(char *hostname, int port)
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
-    if ((rv = getaddrinfo(hostname, port_str, &hints, &servinfo)) != 0) 
+    if ((rv = getaddrinfo(hostname, port_str, &hints, &servinfo)) != 0)
     {
         /* Add a special case for "localhost" when name resolution is broken */
         if(!strncmp("localhost", hostname, 256))
@@ -273,7 +273,7 @@ int get_client_socket(char *hostname, int port)
     }
 
     // loop through all the results and connect to the first we can
-    for(p = servinfo; p != NULL; p = p->ai_next) 
+    for(p = servinfo; p != NULL; p = p->ai_next)
     {
         if (p->ai_family != AF_INET && p->ai_family != AF_INET6)
                     continue;
@@ -311,8 +311,8 @@ int get_client_socket(char *hostname, int port)
 
 /* Proto - our protocol handling */
 
-/* 
- * send_frame: (almost) zero-copy. Overwrites first PROTOCOL_BUFFER_OFFSET bytes of data 
+/*
+ * send_frame: (almost) zero-copy. Overwrites first PROTOCOL_BUFFER_OFFSET bytes of data
  * so actual data should start at position PROTOCOL_BUFFER_OFFSET
  */
 int send_frame(protocol_frame *frame, uint8_t *data)
@@ -414,7 +414,7 @@ int handle_ping_frame(protocol_frame *rcvd_frame)
     frame->friendnumber = rcvd_frame->friendnumber;
     frame->packet_type = PACKET_TYPE_PONG;
     frame->data_length = rcvd_frame->data_length;
-    
+
     send_frame(frame, data);
 
     return 0;
@@ -433,7 +433,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         log_printf(L_WARNING, "Got tunnel request frame from friend #%d when in client mode\n", rcvd_frame->friendnumber);
         return -1;
     }
-    
+
     port = rcvd_frame->connid;
     hostname = calloc(1, rcvd_frame->data_length + 1);
     if(!hostname)
@@ -446,14 +446,14 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
     hostname[rcvd_frame->data_length] = '\0';
 
     log_printf(L_INFO, "Got a request to forward data from %s:%d\n", hostname, port);
-    
+
     // check rules
     if (rules_policy == VALIDATE && nrules > 0 ) {
-        
+
         rule temp_rule, *found = NULL;
         temp_rule.host = hostname;
         temp_rule.port = port;
-        
+
         LL_SEARCH(rules, found, &temp_rule, rule_cmp);
         if(!found)
         {
@@ -532,7 +532,7 @@ int handle_client_tcp_frame(protocol_frame *rcvd_frame)
         int sent_bytes;
 
         sent_bytes = send(
-                tun->sockfd, 
+                tun->sockfd,
                 rcvd_frame->data + offset,
                 rcvd_frame->data_length - offset,
                 MSG_NOSIGNAL
@@ -569,7 +569,7 @@ int handle_client_tcp_fin_frame(protocol_frame *rcvd_frame)
         log_printf(L_WARNING, "Friend #%d tried to close tunnel which belongs to #%d\n", rcvd_frame->friendnumber, tun->friendnumber);
         return -1;
     }
-    
+
     log_printf(L_DEBUG2, "Deleting tunnel #%d (%p) in handle_client_tcp_fin_frame(), socket %d", rcvd_frame->connid, tun, tun->sockfd);
     tunnel_queue_delete(tun);
 
@@ -614,7 +614,7 @@ int handle_frame(protocol_frame *frame)
             }
             break;
         default:
-            log_printf(L_DEBUG, "Got unknown packet type 0x%x from friend %d\n", 
+            log_printf(L_DEBUG, "Got unknown packet type 0x%x from friend %d\n",
                     frame->packet_type,
                     frame->friendnumber
             );
@@ -623,7 +623,7 @@ int handle_frame(protocol_frame *frame)
     return 0;
 }
 
-/* 
+/*
  * This is a callback which gets a packet from Tox core.
  * It checks for basic inconsistiencies and allocates the
  * protocol_frame structure.
@@ -800,12 +800,12 @@ void load_rules()
     int valid_rules = 0;
 
     file = fopen(rules_file, "r");
-    
+
     if (file == NULL) {
         log_printf(L_WARNING, "Could not open rules file (%s)\n", rules_file);
         return;
     }
-    
+
     while (fgets(line, sizeof(line), file)) {
         /* allow comments & white lines */
         if (line[0]=='#'||line[0]=='\n') {
@@ -834,10 +834,10 @@ void load_rules()
         }
     }
     fclose(file);
-    
+
     /* save valid rules in global variable */
     nrules = valid_rules;
-    
+
     log_printf(L_INFO, "Loaded %d rules\n", nrules);
     if (nrules==0 && rules_policy != NONE){
         log_printf(L_WARNING, "No rules loaded! NO CONNECTIONS WILL BE ALLOWED!\n");
@@ -884,7 +884,7 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *m
             return;
         }
     }
-    
+
     memset(tox_printable_id, '\0', sizeof(tox_printable_id));
     id_to_string(tox_printable_id, public_key);
 
@@ -927,7 +927,7 @@ void cleanup()
     tox_kill(tox);
     if(client_socket)
     {
-	close(client_socket);
+        close(client_socket);
     }
     log_close();
 }
@@ -1009,8 +1009,8 @@ int do_server_loop()
                 log_printf(L_DEBUG, "Current tunnel: %p", tun);
                 if(FD_ISSET(tun->sockfd, &fds))
                 {
-                    int nbytes = recv(tun->sockfd, 
-                            tox_packet_buf+PROTOCOL_BUFFER_OFFSET, 
+                    int nbytes = recv(tun->sockfd,
+                            tox_packet_buf+PROTOCOL_BUFFER_OFFSET,
                             READ_BUFFER_SIZE, 0);
 
                     /* Check if connection closed */
@@ -1039,7 +1039,7 @@ int do_server_loop()
                         sent_data = 1;
 
                         tunnel_queue_delete(tun);
-                                            
+
                         continue;
                     }
                     else
@@ -1070,7 +1070,7 @@ int do_server_loop()
         gettimeofday(&tv_end, NULL);
         ms_start = 1000 * tv_start.tv_sec + tv_start.tv_usec/1000;
         ms_end = 1000 * tv_end.tv_sec + tv_end.tv_usec/1000;
-        
+
         if(!sent_data && (ms_end - ms_start < tox_do_interval_ms))
         {
             /*log_printf(L_DEBUG, "Sleeping for %d ms extra to prevent high CPU usage\n", (tox_do_interval_ms - (ms_end - ms_start)));*/
@@ -1089,7 +1089,7 @@ static void child_handler(int signum)
     }
 }
 
-/* 
+/*
  * Daemonize the process if -D is set
  * Optionally drop privileges and create a lock file
  */
@@ -1099,17 +1099,17 @@ void do_daemonize()
     FILE *pidf = NULL;
 
     /* already a daemon */
-    if (getppid() == 1) 
+    if (getppid() == 1)
     {
         return;
     }
 
     /* Drop user if there is one, and we were run as root */
-    if (daemon_username && (getuid() == 0 || geteuid() == 0)) 
+    if (daemon_username && (getuid() == 0 || geteuid() == 0))
     {
         struct passwd *pw = getpwnam(daemon_username);
 
-        if(pw) 
+        if(pw)
         {
             log_printf(L_DEBUG, "Setuid to user %s", daemon_username);
             setuid(pw->pw_uid);
@@ -1139,14 +1139,14 @@ void do_daemonize()
 
     /* Fork off the parent process */
     pid = fork();
-    if (pid < 0) 
+    if (pid < 0)
     {
         log_printf(L_ERROR, "Unable to fork daemon, code=%d (%s)",
                 errno, strerror(errno));
         exit(1);
     }
     /* If we got a good PID, then we can exit the parent process. */
-    if (pid > 0) 
+    if (pid > 0)
     {
         /* Wait for confirmation from the child via SIGTERM or SIGCHLD, or
            for two seconds to elapse (SIGALRM).  pause() should not return. */
@@ -1175,7 +1175,7 @@ void do_daemonize()
 
     /* Create a new SID for the child process */
     sid = setsid();
-    if (sid < 0) 
+    if (sid < 0)
     {
         log_printf(L_ERROR, "unable to create a new session, code %d (%s)",
                 errno, strerror(errno));
@@ -1184,7 +1184,7 @@ void do_daemonize()
 
     /* Change the current working directory.  This prevents the current
        directory from being locked; hence not being able to remove it. */
-    if ((chdir("/")) < 0) 
+    if ((chdir("/")) < 0)
     {
         log_printf(L_ERROR, "Unable to change directory to %s, code %d (%s)",
                 "/", errno, strerror(errno) );
@@ -1197,10 +1197,10 @@ void do_daemonize()
     freopen( "/dev/null", "w", stderr);
 
     /* Create the pid file as the new user */
-    if (pidfile && pidfile[0]) 
+    if (pidfile && pidfile[0])
     {
         pidf = fopen(pidfile, "w");
-        if (!pidf) 
+        if (!pidf)
         {
             log_printf(L_ERROR, "Unable to create PID file %s, code=%d (%s)",
                     pidfile, errno, strerror(errno));
@@ -1212,7 +1212,7 @@ void do_daemonize()
 
 
     /* Tell the parent process that we are A-okay */
-    kill( parent, SIGUSR1 );    
+    kill( parent, SIGUSR1 );
 }
 
 void help()
@@ -1239,8 +1239,8 @@ void help()
     fprintf(stderr, "                  mode\n");
     fprintf(stderr, "    -s <secret> - shared secret used for connection authentication (max\n");
     fprintf(stderr, "                  %u characters)\n", TOX_MAX_FRIEND_REQUEST_LENGTH-1);
-	fprintf(stderr, "    -t <port>   - set TCP relay port (0 disables TCP relaying)\n");
-	fprintf(stderr, "    -u <port>:<port> - set Tox UDP port range\n");
+    fprintf(stderr, "    -t <port>   - set TCP relay port (0 disables TCP relaying)\n");
+    fprintf(stderr, "    -u <port>:<port> - set Tox UDP port range\n");
     fprintf(stderr, "    -d          - debug mode (use twice to display toxcore log too)\n");
     fprintf(stderr, "    -q          - quiet mode\n");
     fprintf(stderr, "    -S          - send output to syslog instead of stderr\n");
@@ -1260,11 +1260,11 @@ int main(int argc, char *argv[])
     size_t save_size = 0;
     uint8_t *save_data = NULL;
     allowed_toxid *allowed_toxid_obj = NULL;
-	
-	srand(time(NULL));
-	tcp_relay_port = 1024 + (rand() % 64511);
-	udp_start_port = 1024 + (rand() % 64500);
-	udp_end_port = udp_start_port + 10;
+
+    srand(time(NULL));
+    tcp_relay_port = 1024 + (rand() % 64511);
+    udp_start_port = 1024 + (rand() % 64500);
+    udp_end_port = udp_start_port + 10;
 
     log_init();
 
@@ -1334,7 +1334,7 @@ int main(int argc, char *argv[])
                 if(optarg[strlen(optarg) - 1] != '/')
                 {
                     int optarg_len = strlen(optarg);
-                    
+
                     config_path[optarg_len] = '/';
                     config_path[optarg_len + 1] = '\0';
                 }
@@ -1356,7 +1356,7 @@ int main(int argc, char *argv[])
 				{
 					log_tox_trace = 1;
 				}
-				if(min_log_level != L_DEBUG && min_log_level != L_DEBUG2) 
+				if(min_log_level != L_DEBUG && min_log_level != L_DEBUG2)
 				{
 	                min_log_level = L_DEBUG;
 				}
@@ -1442,7 +1442,7 @@ int main(int argc, char *argv[])
     {
         log_printf(L_INFO, "Server in ToxID whitelisting mode - only clients listed with -i can connect");
     }
-    
+
     if((!client_mode) && (rules_policy != NONE))
     {
         load_rules();
@@ -1470,22 +1470,22 @@ int main(int argc, char *argv[])
 
     /* Bootstrap tox */
     tox_options_default(&tox_options);
-	if(min_log_level >= L_DEBUG2)
-	{
-		tox_options.log_callback = on_tox_log;
-	}
-	tox_options.udp_enabled = 1;
-	tox_options.local_discovery_enabled = 1;
-	tox_options.tcp_port = tcp_relay_port;
-	tox_options.start_port = udp_start_port;
-	tox_options.end_port = udp_end_port;
-	tox_options.hole_punching_enabled = 1;
+    if(min_log_level >= L_DEBUG2)
+    {
+        tox_options.log_callback = on_tox_log;
+    }
+    tox_options.udp_enabled = 1;
+    tox_options.local_discovery_enabled = 1;
+    tox_options.tcp_port = tcp_relay_port;
+    tox_options.start_port = udp_start_port;
+    tox_options.end_port = udp_end_port;
+    tox_options.hole_punching_enabled = 1;
 
-	log_printf(L_INFO, "Using %d for TCP relay port and %d-%d for UDP", 
-		tox_options.tcp_port,
-		tox_options.start_port,
-		tox_options.end_port
-	);
+    log_printf(L_INFO, "Using %d for TCP relay port and %d-%d for UDP",
+        tox_options.tcp_port,
+        tox_options.start_port,
+        tox_options.end_port
+    );
 
     if((!client_mode) || load_saved_toxid_in_client_mode)
     {
