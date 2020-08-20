@@ -112,6 +112,8 @@ extern char shared_secret[TOX_MAX_FRIEND_REQUEST_LENGTH];
 extern int select_nfds;
 extern tunnel *by_id;
 
+extern TOX_CONNECTION friend_connection_status;
+
 void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp);
 tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber);
 void tunnel_delete(tunnel *t);

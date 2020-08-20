@@ -279,13 +279,10 @@ int do_client_loop(uint8_t *tox_id_str)
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     unsigned char tox_id[TOX_ADDRESS_SIZE];
     uint32_t friendnumber = 0;
-    TOX_CONNECTION last_friend_connection_status = TOX_CONNECTION_NONE;
-    time_t last_friend_connection_status_received = 0;
     struct timeval tv;
     fd_set fds;
     static time_t invitation_sent_time = 0;
     uint32_t invitations_sent = 0;
-    TOX_ERR_FRIEND_QUERY friend_query_error;
     TOX_ERR_FRIEND_CUSTOM_PACKET custom_packet_error;
 
     client_tunnel.sockfd = 0;
@@ -371,17 +368,7 @@ int do_client_loop(uint8_t *tox_id_str)
                 break;
             case CLIENT_STATE_SENTREQUEST:
                 {
-                    TOX_CONNECTION friend_connection_status;
-                    friend_connection_status = tox_friend_get_connection_status(tox, friendnumber, &friend_query_error);
-                    if(friend_query_error != TOX_ERR_FRIEND_QUERY_OK)
                     {
-                        log_printf(L_DEBUG, "tox_friend_get_connection_status: error %u", friend_query_error);
-                    }
-                    else
-                    {
-                        last_friend_connection_status_received = time(NULL);
-                        last_friend_connection_status = friend_connection_status;
-
                         if(friend_connection_status != TOX_CONNECTION_NONE)
                         {
                             const char* status = readable_connection_status(friend_connection_status);
@@ -390,7 +377,8 @@ int do_client_loop(uint8_t *tox_id_str)
                         }
                         else
                         {
-                            if(1 && (time(NULL) - invitation_sent_time > 45))
+                            const int INVITATION_SEND_INTERVAL = 90;
+                            if (time(NULL) - invitation_sent_time > INVITATION_SEND_INTERVAL)
                             {
                                 TOX_ERR_FRIEND_DELETE error = 0;
 
@@ -597,44 +585,14 @@ int do_client_loop(uint8_t *tox_id_str)
                     fds = client_master_fdset;
 
                     /* Check friend connection status changes */
-                    /* TODO: learned about tox_friend_connection_status_cb after writing this... */
-                    /* TODO: also check friend status tox_callback_friend_status */
-                    if(time(NULL) - last_friend_connection_status_received > 15)
+                    if(friend_connection_status == TOX_CONNECTION_NONE)
                     {
-                        TOX_CONNECTION friend_connection_status;
-                        friend_connection_status = tox_friend_get_connection_status(tox, friendnumber, &friend_query_error);
-                        if(friend_query_error != TOX_ERR_FRIEND_QUERY_OK)
-                        {
-                            log_printf(L_DEBUG, "tox_friend_get_connection_status: error %u\n", friend_query_error);
-                        }
-                        else
-                        {
-                            if(friend_connection_status != last_friend_connection_status)
-                            {
-                                const char* status = readable_connection_status(friend_connection_status);
-                                log_printf(L_INFO, "Friend connection status changed to: %s (%d)\n", status, friend_connection_status);
-
-								if(friend_connection_status == TOX_CONNECTION_NONE)
-								{
-									state = CLIENT_STATE_CONNECTION_LOST;
-								}
-                            }
-
-                            last_friend_connection_status_received = time(NULL);
-                            last_friend_connection_status = friend_connection_status;
-                        }
+                        state = CLIENT_STATE_CONNECTION_LOST;
                     }
                 }
                 break;
             case CLIENT_STATE_CONNECTION_LOST:
                 {
-                    TOX_CONNECTION friend_connection_status;
-                    friend_connection_status = tox_friend_get_connection_status(tox, friendnumber, &friend_query_error);
-                    if(friend_query_error != TOX_ERR_FRIEND_QUERY_OK)
-                    {
-                        log_printf(L_DEBUG, "tox_friend_get_connection_status: error %u\n", friend_query_error);
-                    }
-                    else
                     {
                         if(friend_connection_status == TOX_CONNECTION_NONE)
                         {

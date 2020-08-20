@@ -12,6 +12,7 @@ Tox *tox;
 int client_socket = 0;
 TOX_CONNECTION connection_status = TOX_CONNECTION_NONE;
 
+TOX_CONNECTION friend_connection_status = TOX_CONNECTION_NONE;
 /** CONFIGURATION OPTIONS **/
 /* Whether we're a client */
 int client_mode = 0;
@@ -908,7 +909,7 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *m
         return;
     }
 
-    log_printf(L_INFO, "Accepted friend request from %s as %d\n", tox_printable_id, friendnumber);
+    log_printf(L_INFO, "Accepted friend request from %s as #%d\n", tox_printable_id, friendnumber);
 }
 
 /* Callback for tox_callback_self_connection_status() */
@@ -918,6 +919,17 @@ void handle_connection_status_change(Tox *tox, TOX_CONNECTION p_connection_statu
     connection_status = p_connection_status;
     status = readable_connection_status(connection_status);
     log_printf(L_INFO, "Connection status changed: %s", status);
+}
+
+void handle_friend_connection_status(Tox *tox, uint32_t friend_number, TOX_CONNECTION connection_status, void *user_data)
+{
+    const char *status = NULL;
+    status = readable_connection_status(connection_status);
+    log_printf(L_INFO, "Friend #%d connection status changed: %s", friend_number, status);
+    if(client_mode)
+    {
+        friend_connection_status = connection_status;
+    }
 }
 
 void cleanup()
@@ -1521,6 +1533,7 @@ int main(int argc, char *argv[])
 
     set_tox_username(tox);
     tox_callback_self_connection_status(tox, handle_connection_status_change);
+    tox_callback_friend_connection_status(tox, handle_friend_connection_status);
 
     do_bootstrap(tox);
 
