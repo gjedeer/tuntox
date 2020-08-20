@@ -37,7 +37,7 @@ int handle_pong_frame()
 
     if(ping_mode)
     {
-        state = CLIENT_STATE_SEND_PING;
+        state = CLIENT_STATE_SHUTDOWN;
     }
     return 0;
 }
@@ -279,14 +279,10 @@ int do_client_loop(uint8_t *tox_id_str)
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     unsigned char tox_id[TOX_ADDRESS_SIZE];
     uint32_t friendnumber = 0;
-    TOX_CONNECTION last_friend_connection_status = TOX_CONNECTION_NONE;
-    time_t last_friend_connection_status_received = 0;
-	time_t connection_lost_timestamp = 0;
     struct timeval tv;
     fd_set fds;
     static time_t invitation_sent_time = 0;
     uint32_t invitations_sent = 0;
-    TOX_ERR_FRIEND_QUERY friend_query_error;
     TOX_ERR_FRIEND_CUSTOM_PACKET custom_packet_error;
 
     client_tunnel.sockfd = 0;
@@ -310,12 +306,12 @@ int do_client_loop(uint8_t *tox_id_str)
 
     while(1)
     {
-	/* Let tox do its stuff */
-	tox_iterate(tox, NULL);
+        /* Let tox do its stuff */
+        tox_iterate(tox, NULL);
 
         switch(state)
         {
-            /* 
+            /*
              * Send friend request
              */
             case CLIENT_STATE_INITIAL:
@@ -372,17 +368,7 @@ int do_client_loop(uint8_t *tox_id_str)
                 break;
             case CLIENT_STATE_SENTREQUEST:
                 {
-                    TOX_CONNECTION friend_connection_status;
-                    friend_connection_status = tox_friend_get_connection_status(tox, friendnumber, &friend_query_error);
-                    if(friend_query_error != TOX_ERR_FRIEND_QUERY_OK)
                     {
-                        log_printf(L_DEBUG, "tox_friend_get_connection_status: error %u", friend_query_error);
-                    }
-                    else
-                    {
-                        last_friend_connection_status_received = time(NULL);
-                        last_friend_connection_status = friend_connection_status;
-
                         if(friend_connection_status != TOX_CONNECTION_NONE)
                         {
                             const char* status = readable_connection_status(friend_connection_status);
@@ -391,7 +377,8 @@ int do_client_loop(uint8_t *tox_id_str)
                         }
                         else
                         {
-                            if(1 && (time(NULL) - invitation_sent_time > 45))
+                            const int INVITATION_SEND_INTERVAL = 90;
+                            if (time(NULL) - invitation_sent_time > INVITATION_SEND_INTERVAL)
                             {
                                 TOX_ERR_FRIEND_DELETE error = 0;
 
@@ -501,7 +488,7 @@ int do_client_loop(uint8_t *tox_id_str)
                     tv.tv_sec = 0;
                     tv.tv_usec = 20000;
                     fds = client_master_fdset;
-                    
+
                     /* Handle accepting new connections */
                     if(!client_pipe_mode &&
                         client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
@@ -598,69 +585,38 @@ int do_client_loop(uint8_t *tox_id_str)
                     fds = client_master_fdset;
 
                     /* Check friend connection status changes */
-                    /* TODO: learned about tox_friend_connection_status_cb after writing this... */
-                    /* TODO: also check friend status tox_callback_friend_status */
-                    if(time(NULL) - last_friend_connection_status_received > 15)
+                    if(friend_connection_status == TOX_CONNECTION_NONE)
                     {
-                        TOX_CONNECTION friend_connection_status;
-                        friend_connection_status = tox_friend_get_connection_status(tox, friendnumber, &friend_query_error);
-                        if(friend_query_error != TOX_ERR_FRIEND_QUERY_OK)
+                        state = CLIENT_STATE_CONNECTION_LOST;
+                    }
+                }
+                break;
+            case CLIENT_STATE_CONNECTION_LOST:
+                {
+                    {
+                        if(friend_connection_status == TOX_CONNECTION_NONE)
                         {
-                            log_printf(L_DEBUG, "tox_friend_get_connection_status: error %u\n", friend_query_error);
+                            /* https://github.com/TokTok/c-toxcore/blob/acb6b2d8543c8f2ea0c2e60dc046767cf5cc0de8/toxcore/tox.h#L1267 */
+                            TOX_ERR_FRIEND_DELETE tox_delete_error;
+
+                            log_printf(L_WARNING, "Lost connection to server, closing all tunnels and re-adding friend\n");
+                            client_close_all_connections();
+                            tox_friend_delete(tox, friendnumber, &tox_delete_error);
+                            if(tox_delete_error)
+                            {
+                                log_printf(L_ERROR, "Error when deleting server from friend list: %d\n", tox_delete_error);
+                            }
+                            state = CLIENT_STATE_INITIAL;
                         }
                         else
                         {
-                            if(friend_connection_status != last_friend_connection_status)
-                            {
-                                const char* status = readable_connection_status(friend_connection_status);
-                                log_printf(L_INFO, "Friend connection status changed to: %s (%d)\n", status, friend_connection_status);
-
-								if(friend_connection_status == TOX_CONNECTION_NONE)
-								{
-									state = CLIENT_STATE_CONNECTION_LOST;
-									connection_lost_timestamp = time(NULL);
-								}
-                            }
-
-                            last_friend_connection_status_received = time(NULL);
-                            last_friend_connection_status = friend_connection_status;
+                            state = CLIENT_STATE_FORWARDING;
                         }
                     }
                 }
                 break;
-			case CLIENT_STATE_CONNECTION_LOST:
-				{
-					TOX_CONNECTION friend_connection_status;
-					friend_connection_status = tox_friend_get_connection_status(tox, friendnumber, &friend_query_error);
-					if(friend_query_error != TOX_ERR_FRIEND_QUERY_OK)
-					{
-						log_printf(L_DEBUG, "tox_friend_get_connection_status: error %u\n", friend_query_error);
-					}
-					else
-					{
-						if(friend_connection_status == TOX_CONNECTION_NONE)
-						{
-							/* https://github.com/TokTok/c-toxcore/blob/acb6b2d8543c8f2ea0c2e60dc046767cf5cc0de8/toxcore/tox.h#L1267 */
-							TOX_ERR_FRIEND_DELETE tox_delete_error;
-
-							log_printf(L_WARNING, "Lost connection to server, closing all tunnels and re-adding friend\n");
-							client_close_all_connections();
-							tox_friend_delete(tox, friendnumber, &tox_delete_error);
-							if(tox_delete_error)
-							{
-								log_printf(L_ERROR, "Error when deleting server from friend list: %d\n", tox_delete_error);
-							}
-							state = CLIENT_STATE_INITIAL;
-						}
-						else
-						{
-							state = CLIENT_STATE_FORWARDING;
-						}
-					}
-				}
-				break;
-			case 0xffffffff:
-				log_printf(L_ERROR, "You forgot a break statement\n");
+            case 0xffffffff:
+                log_printf(L_ERROR, "You forgot a break statement\n");
             case CLIENT_STATE_SHUTDOWN:
                 exit(0);
                 break;

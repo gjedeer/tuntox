@@ -23,9 +23,17 @@ examples:
     tokssh user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054 -s TuNToXSeCreT
 
 files:
-    ~/.tuntox/hosts maps hostname to ToxID and optional secret.
-    format is
-    hostname    ToxID   secret(optional)
+    ~/.tuntox/persist/
+
+      If directory exists, then read & store a persistent secret key/TOXID within.
+
+    ~/.tuntox/hosts
+
+      Maps hostname to ToxID and optional secret.
+
+      format is:
+
+        hostname    ToxID   secret(optional)
 EOF
 }
 
@@ -84,4 +92,10 @@ if [ -f ~/.tuntox/hosts ]; then
     done < ~/.tuntox/hosts
 fi
 
-ssh -o ProxyCommand="tuntox -i $toxid -W 127.0.0.1:%p $secret" $args ${user}${hostname}
+if [ -d ~/.tuntox/persist ]; then
+    persist='-C ~/.tuntox/persist'
+else
+    persist=
+fi
+
+ssh -o ProxyCommand="tuntox $persist -i $toxid -W 127.0.0.1:%p $secret" $args ${user}${hostname}
