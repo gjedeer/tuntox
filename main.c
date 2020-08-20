@@ -11,11 +11,13 @@ static struct Tox_Options tox_options;
 Tox *tox;
 int client_socket = 0;
 TOX_CONNECTION connection_status = TOX_CONNECTION_NONE;
-
 TOX_CONNECTION friend_connection_status = TOX_CONNECTION_NONE;
 /** CONFIGURATION OPTIONS **/
 /* Whether we're a client */
 int client_mode = 0;
+
+/* Don't bootstrap nodes */
+int skip_bootstrap = 1;
 
 /* Just send a ping and exit */
 int ping_mode = 0;
@@ -1552,7 +1554,8 @@ int main(int argc, char *argv[])
     tox_callback_self_connection_status(tox, handle_connection_status_change);
     tox_callback_friend_connection_status(tox, handle_friend_connection_status);
 
-    do_bootstrap(tox);
+    if (!skip_bootstrap)
+        do_bootstrap(tox);
 
     if((!client_mode) || load_saved_toxid_in_client_mode)
     {
