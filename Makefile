@@ -48,4 +48,11 @@ install: tuntox_nostatic
 	$(INSTALL_MKDIR) -d $(DESTDIR)$(bindir)
 	cp tuntox_nostatic $(DESTDIR)$(bindir)/tuntox
 
+debs = ../tuntox_0.0.9-1_amd64.deb ../tuntox-dbgsym_0.0.9-1_amd64.deb
+.PHONY: install-debs debs
+install-debs: $(debs)
+	$(shell [ "$$(id -u)" = 0 ] || echo sudo) dpkg -i $(debs)
+$(debs) debs:
+	fakeroot ./debian/rules binary
+
 .PHONY: all clean tuntox
