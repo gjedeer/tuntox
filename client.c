@@ -384,10 +384,11 @@ int do_client_loop(uint8_t *tox_id_str)
                             log_printf(L_ERROR, "Shutting down - could not bind to listening port\n");
                             exit(1);
                         }
+                        client_tunnel.sockfd = 0;
                         /* fall through... */
                     case Mode_Client_Pipe:
                         send_tunnel_request_packet(remote_host, remote_port, friendnumber);
-                        state = CLIENT_STATE_WAIT_FOR_ACKTUNNEL;
+                        state = CLIENT_STATE_FORWARDING;
                         break;
                     default:
                         log_printf(L_ERROR, "BUG: Impossible client mode at %s:%s", __FILE__, __LINE__);
@@ -415,10 +416,6 @@ int do_client_loop(uint8_t *tox_id_str)
                 break;
             case CLIENT_STATE_PING_SENT:
                 /* Just sit there and wait for pong */
-                break;
-            case CLIENT_STATE_WAIT_FOR_ACKTUNNEL:
-                /* client_tunnel.sockfd = 0; */
-                /* send_tunnel_request_packet(remote_host, remote_port, friendnumber); */
                 break;
             case CLIENT_STATE_FORWARDING:
                 {
