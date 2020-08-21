@@ -1407,42 +1407,42 @@ int main(int argc, char *argv[])
             case 'U':
                 daemon_username = optarg;
                 break;
-			case 't':
-				errno = 0;
-				tcp_relay_port = strtol(optarg, NULL, 10);
-				if(errno != 0 || tcp_relay_port < 0 || tcp_relay_port > 65535)
-				{
-					tcp_relay_port = 1024 + (rand() % 64511);
-					log_printf(L_WARNING, "Ignored -t %s: TCP port number needs to be a number between 0 and 65535.");
-				}
-				break;
-			case 'u':
-				{ /* TODO make a function in util.h */
-				char *sport;
-				char *eport;
+            case 't':
+                errno = 0;
+                tcp_relay_port = strtol(optarg, NULL, 10);
+                if(errno != 0 || tcp_relay_port < 0 || tcp_relay_port > 65535)
+                {
+                tcp_relay_port = 1024 + (rand() % 64511);
+                log_printf(L_WARNING, "Ignored -t %s: TCP port number needs to be a number between 0 and 65535.");
+                }
+                break;
+            case 'u':
+                { /* TODO make a function in util.h */
+                    char *sport;
+                    char *eport;
 
-				sport = strtok(optarg, ":");
-				eport = strtok(NULL, ":");
-				if(!sport || !eport)
-				{
-					log_printf(L_WARNING, "Ignored -u %s: wrong format");
-				}
-				else
-				{
-					errno = 0;
-					udp_start_port = strtol(sport, NULL, 10);
-					udp_end_port = strtol(eport, NULL, 10);
-					if(errno != 0 || udp_start_port < 1 || udp_start_port > 65535 || \
-					   udp_end_port < 1 || udp_end_port > 65535)
-					{
-						log_printf(L_WARNING, "Ignored -u %s: ports need to be integers between 1 and 65535");
-						udp_start_port = 1024 + (rand() % 64500);
-						udp_end_port = udp_start_port + 10;
-					}
+                    sport = strtok(optarg, ":");
+                    eport = strtok(NULL, ":");
+                    if(!sport || !eport)
+                    {
+                        log_printf(L_WARNING, "Ignored -u %s: wrong format");
+                    }
+                    else
+                    {
+                        errno = 0;
+                        udp_start_port = strtol(sport, NULL, 10);
+                        udp_end_port = strtol(eport, NULL, 10);
+                        if(errno != 0 || udp_start_port < 1 || udp_start_port > 65535 || \
+                            udp_end_port < 1 || udp_end_port > 65535)
+                        {
+                            log_printf(L_WARNING, "Ignored -u %s: ports need to be integers between 1 and 65535");
+                            udp_start_port = 1024 + (rand() % 64500);
+                            udp_end_port = udp_start_port + 10;
+                        }
 
-				}
-				}
-				break;
+                    }
+                }
+                break;
             case '?':
             case 'h':
             default:
