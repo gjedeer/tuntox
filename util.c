@@ -83,52 +83,62 @@ int string_to_id(char_t *w, char_t *a)
 }
 
 /* Parse the -L parameter */
-/* 0 = success */
-int parse_local_port_forward(char *string, int *local_port, char **hostname, int *remote_port)
+/* true = success */
+bool parse_local_port_forward(char *string, int *local_port, char **hostname, int *remote_port)
 {
     char *lport;
-    char *host;
-    char *rport;
 
     /* Alternative delimiter '@', as ':' is forbidden in some environments */
-
     lport = strtok(string, ":@");
-    host = strtok(NULL, ":@");
-    rport = strtok(NULL, ":@");
 
-    if(!lport || !host || !rport)
+    if(!(*local_port = atoi(lport)))
     {
-        return -1;
+        return false;
     }
 
-    *local_port = atoi(lport);
-    *hostname = host;
-    *remote_port = atoi(rport);
-
-    return 0;
+    if(parse_pipe_port_forward(lport + strlen(lport), hostname, remote_port))
+    {
+        return *remote_port;
+    }
+    return false;
 }
 
 /* Parse the -W parameter */
-/* 0 = success */
-int parse_pipe_port_forward(char *string, char **hostname, int *remote_port)
+/* true = success */
+bool parse_pipe_port_forward(char *string, char **hostname, int *remote_port)
 {
     char *host;
     char *rport;
 
     /* Alternative delimiter '@', as ':' is forbidden in some environments */
-
     host = strtok(string, ":@");
-    rport = strtok(NULL, ":@");
+    rport = strtok(NULL, "");
 
     if(!host || !rport)
     {
-        return -1;
+        return false;
     }
 
     *hostname = host;
     *remote_port = atoi(rport);
 
-    return 0;
+    if(*remote_port > 0 && *remote_port < 65535)
+    {
+        /* This is tolerant of nonsense tokens after the port. */
+        return true;
+    }
+    else
+    {
+        /* Port 0 is not allowed in the input. Only a literal '*' can produce a
+         * port 0 in the output, which will be treated as a wildcard if this is
+         * a rule. */
+        if (rport[0] != '*')
+        {
+            return false;
+        }
+        /* Return an error if an extra token follows, but tolerate whitespace. */
+        return !strtok(rport+1, "\n\t ");
+    }
 }
 
 void* file_raw(char *path, uint32_t *size)

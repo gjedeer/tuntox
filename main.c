@@ -42,10 +42,11 @@ long int udp_end_port = 0;
 char config_path[500] = "/etc/tuntox/";
 
 /* Limit hostname and port in server */
-int nrules = 0;
-char rules_file[500] = "/etc/tuntox/rules";
-bool enforce_whitelist = false;
-rule *rules = NULL;
+int tunnel_target_whitelist_size = 0;
+char *tunnel_target_whitelist_file;
+bool tunnel_target_whitelist_enforced = false;
+rule *tunnel_target_whitelist_rules = NULL;
+time_t tunnel_target_whitelist_mtime = 0;
 
 /* Ports and hostname for port forwarding */
 int remote_port = 0;
@@ -422,13 +423,16 @@ int handle_ping_frame(protocol_frame *rcvd_frame)
     return 0;
 }
 
+void tunnel_target_whitelist_load();
 bool check_requested_tunnel_against_rules(char *hostname, in_port_t port)
 {
-    if (!enforce_whitelist) return true;
+    if (!tunnel_target_whitelist_enforced) return true;
 
-    if (nrules <= 0)
+    tunnel_target_whitelist_load();
+
+    if (tunnel_target_whitelist_size <= 0)
     {
-        log_printf(l_warning, "filter option active but no allowed host/port. all requests will be dropped.\n");
+        log_printf(L_WARNING, "Whitelist enforced, but no whitelisted entries. All requests will be dropped.\n");
         return false;
     }
 
@@ -436,11 +440,7 @@ bool check_requested_tunnel_against_rules(char *hostname, in_port_t port)
     candidate.host = hostname;
     candidate.port = port;
 
-    LL_SEARCH(rules, found, &candidate, rule_match);
-    if(!found)
-    {
-        log_printf(L_WARNING, "Rejected, request not in rules\n");
-    }
+    LL_SEARCH(tunnel_target_whitelist_rules, found, &candidate, rule_match);
     return found;
 }
 
@@ -473,6 +473,8 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
 
     if (!check_requested_tunnel_against_rules(hostname, port))
     {
+        log_printf(L_WARNING, "Rejected tunnel request from #%d to non-whitelisted target host:port (%s:%d)",
+                   rcvd_frame->friendnumber, hostname, port);
         free(hostname);
         return -1;
     }
@@ -791,71 +793,89 @@ static size_t load_save(uint8_t **out_data)
     }
 }
 
+void tunnel_target_whitelist_clear();
 /* Loads a list of allowed hostnames and ports from file. Format is hostname:port*/
-void load_rules()
+void tunnel_target_whitelist_load()
 {
     char *ahost=NULL;
     int aport=0;
-    char line[100 + 1] = "";
+    char line[1024];
     FILE *file = NULL;
     rule *rule_obj = NULL;
-    int valid_rules = 0;
 
-    file = fopen(rules_file, "r");
+    if (!tunnel_target_whitelist_enforced) return;
 
-    if (file == NULL) {
-        log_printf(L_WARNING, "Could not open rules file (%s)\n", rules_file);
+    /* If we have existing rules, check to see if we need to continue. */
+    if(tunnel_target_whitelist_rules)
+    {
+        struct stat buf;
+        if (stat(tunnel_target_whitelist_file, &buf) < 0)
+        {
+            /* File removed?  Better clear the whitelist. */
+            tunnel_target_whitelist_mtime = 0;
+            tunnel_target_whitelist_clear();
+            return;
+        }
+        if (buf.st_mtime == tunnel_target_whitelist_mtime) return;
+
+        tunnel_target_whitelist_mtime = buf.st_mtime;
+        tunnel_target_whitelist_clear();
+    }
+
+    file = fopen(tunnel_target_whitelist_file, "r");
+
+    if(file == NULL) {
+        log_printf(L_WARNING, "Could not open rules file (%s)\n", tunnel_target_whitelist_file);
         return;
     }
 
-    while (fgets(line, sizeof(line), file)) {
-        /* allow comments & white lines */
-        if (line[0]=='#'||line[0]=='\n') {
-            continue;
-        }
-        if (parse_pipe_port_forward(line, &ahost, &aport) >= 0) {
-            if (aport > 0 && aport < 65535) {
-
-                rule_obj = (rule *)calloc(sizeof(rule), 1);
-                if(!rule_obj)
-                {
-                    log_printf(L_ERROR, "Could not allocate memory for rule");
-                    exit(1);
-                }
-
-                rule_obj->port = aport;
-                rule_obj->host = strdup(ahost);
-
-                LL_APPEND(rules, rule_obj);
-                valid_rules++;
-            } else {
-                log_printf(L_WARNING, "Invalid port in line: %s\n", line);
+    while(fgets(line, sizeof(line), file))
+    {
+        strtok(line, "#\n");    /* Chop line at first hash */
+        char *orig_line = strdup(line); /* Not quite the original line; keeps
+                                           newline and comments out of logs */
+        if(parse_pipe_port_forward(line, &ahost, &aport))
+        {
+            rule_obj = (rule *)calloc(sizeof(rule), 1);
+            if(!rule_obj)
+            {
+                log_printf(L_ERROR, "Could not allocate memory for rule");
+                exit(1);
             }
-        } else {
-            log_printf(L_WARNING, "Could not parse line: %s\n", line);
+
+            rule_obj->port = aport;
+            rule_obj->host = strdup(ahost);
+
+            LL_APPEND(tunnel_target_whitelist_rules, rule_obj);
+            tunnel_target_whitelist_size++;
         }
+        else
+        {
+            log_printf(L_WARNING, "Could not parse line: %s\n", orig_line);
+        }
+        free(orig_line);
     }
     fclose(file);
 
-    /* save valid rules in global variable */
-    nrules = valid_rules;
-
-    log_printf(L_INFO, "Loaded %d rules\n", nrules);
-    if (nrules==0 && enforce_whitelist){
+    log_printf(L_INFO, "Loaded %d rules\n", tunnel_target_whitelist_size);
+    if (tunnel_target_whitelist_size == 0 && tunnel_target_whitelist_enforced){
         log_printf(L_WARNING, "No rules loaded! NO CONNECTIONS WILL BE ALLOWED!\n");
     }
 }
 
 /* Clear rules loaded into memory */
-void clear_rules()
+void tunnel_target_whitelist_clear()
 {
     rule * elt, *tmp;
     /* delete each elemen using the safe iterator */
-    LL_FOREACH_SAFE(rules,elt,tmp) {
-      LL_DELETE(rules,elt);
+    LL_FOREACH_SAFE(tunnel_target_whitelist_rules,elt,tmp) {
+      LL_DELETE(tunnel_target_whitelist_rules,elt);
       free(elt->host);
       free(elt);
     }
+    free(tunnel_target_whitelist_rules);
+    tunnel_target_whitelist_rules = NULL;
+    tunnel_target_whitelist_size = 0;
 }
 
 void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *message, size_t length, void *userdata)
@@ -914,12 +934,17 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *m
 }
 
 /* Callback for tox_callback_self_connection_status() */
-void handle_connection_status_change(Tox *tox, TOX_CONNECTION p_connection_status, void *user_data)
+void handle_connection_status_change(Tox *tox, TOX_CONNECTION new_connection_status, void *user_data)
 {
-    const char *status = NULL;
-    connection_status = p_connection_status;
-    status = readable_connection_status(connection_status);
-    log_printf(L_INFO, "Connection status changed: %s", status);
+    connection_status = new_connection_status;
+    if (connection_status)
+    {
+        log_printf(L_INFO, "Connected to Tox network: %s\n", readable_connection_status(connection_status));
+    }
+    else
+    {
+        log_printf(L_INFO, "Disconnected from Tox network\n");
+    }
 }
 
 #ifdef LOG_IP_ADDRESS
@@ -971,7 +996,6 @@ int do_server_loop()
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     tunnel *tun = NULL;
     tunnel *tmp = NULL;
-    TOX_CONNECTION connected = 0;
     int sent_data = 0;
 
     tox_callback_friend_lossless_packet(tox, parse_lossless_packet);
@@ -996,20 +1020,6 @@ int do_server_loop()
         tv.tv_sec = tox_do_interval_ms / 1000;
         log_printf(L_DEBUG2, "Iteration interval: %dms\n", tox_do_interval_ms);
         gettimeofday(&tv_start, NULL);
-
-        /* Check change in connection state */
-        if(connection_status != connected)
-        {
-            connected = connection_status;
-            if(connected)
-            {
-                log_printf(L_DEBUG, "Connected to Tox network\n");
-            }
-            else
-            {
-                log_printf(L_DEBUG, "Disconnected from Tox network\n");
-            }
-        }
 
         fds = master_server_fds;
 
@@ -1304,7 +1314,7 @@ int main(int argc, char *argv[])
                 /* Local port forwarding */
                 client_mode = 1;
                 client_local_port_mode = 1;
-                if(parse_local_port_forward(optarg, &local_port, &remote_host, &remote_port) < 0)
+                if(!parse_local_port_forward(optarg, &local_port, &remote_host, &remote_port))
                 {
                     log_printf(L_ERROR, "Invalid value for -L option - use something like -L 22:127.0.0.1:22\n");
                     exit(1);
@@ -1319,7 +1329,7 @@ int main(int argc, char *argv[])
                 /* Pipe forwarding */
                 client_mode = 1;
                 client_pipe_mode = 1;
-                if(parse_pipe_port_forward(optarg, &remote_host, &remote_port) < 0)
+                if(!parse_pipe_port_forward(optarg, &remote_host, &remote_port) || remote_port == 0)
                 {
                     log_printf(L_ERROR, "Invalid value for -W option - use something like -W 127.0.0.1:22\n");
                     exit(1);
@@ -1369,9 +1379,9 @@ int main(int argc, char *argv[])
                 load_saved_toxid_in_client_mode = 1;
                 break;
             case 'f':
-                strncpy(rules_file, optarg, sizeof(rules_file) - 1);
-                enforce_whitelist = true;
-                log_printf(L_INFO, "Filter policy set to VALIDATE\n");
+                tunnel_target_whitelist_file = strdup(optarg);
+                tunnel_target_whitelist_enforced = true;
+                log_printf(L_INFO, "Whitelist enforced on outgoing connections: only matched hosts/ports will be allowed.\n");
                 break;
             case 's':
                 /* Shared secret */
@@ -1471,9 +1481,9 @@ int main(int argc, char *argv[])
         log_printf(L_INFO, "Server in ToxID whitelisting mode - only clients listed with -i can connect");
     }
 
-    if((!client_mode) && enforce_whitelist)
+    if(!client_mode && tunnel_target_whitelist_enforced)
     {
-        load_rules();
+        tunnel_target_whitelist_load();
     }
 
     /* If shared secret has not been provided via -s, read from TUNTOX_SHARED_SECRET env variable */
@@ -1589,7 +1599,6 @@ int main(int argc, char *argv[])
         {
             tox_callback_friend_request(tox, accept_friend_request);
             do_server_loop();
-            clear_rules();
         }
     }
 
