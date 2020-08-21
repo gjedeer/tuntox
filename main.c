@@ -1288,6 +1288,7 @@ int main(int argc, char *argv[])
     size_t save_size = 0;
     uint8_t *save_data = NULL;
     allowed_toxid *allowed_toxid_obj = NULL;
+    int verbosity = 0;
 
     srand(time(NULL));
     tcp_relay_port = 1024 + (rand() % 64511);
@@ -1380,19 +1381,19 @@ int main(int argc, char *argv[])
                 strncpy(shared_secret, optarg, TOX_MAX_FRIEND_REQUEST_LENGTH-1);
                 break;
             case 'd':
-				if(min_log_level == L_DEBUG2)
-				{
-					log_tox_trace = 1;
-				}
-				if(min_log_level != L_DEBUG && min_log_level != L_DEBUG2)
-				{
-	                min_log_level = L_DEBUG;
-				}
-				else
-				{
-					min_log_level = L_DEBUG2;
-				}
-
+                switch(++verbosity)
+                {
+                case 1:
+                    min_log_level = L_DEBUG;
+                    break;
+                case 2:
+                    min_log_level = L_DEBUG2;
+                    break;
+                case 3:
+                default:
+                    min_log_level = L_DEBUG2;
+                    log_tox_trace = 1;
+                }
                 break;
             case 'q':
                 min_log_level = L_ERROR;
