@@ -142,11 +142,7 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
         return -1;
     }
 
-    tun = tunnel_create(
-            client_tunnel.sockfd,
-            rcvd_frame->connid,
-            rcvd_frame->friendnumber
-    );
+    tun = tunnel_create(client_tunnel.sockfd, rcvd_frame->connid, rcvd_frame->friendnumber);
 
     /* Mark that we can accept() another connection */
     client_tunnel.sockfd = -1;
@@ -438,11 +434,7 @@ int do_client_loop(uint8_t *tox_id_str)
 
                             /* Open a new tunnel for this FD */
                             client_tunnel.sockfd = accept_fd;
-                            send_tunnel_request_packet(
-                                    remote_host,
-                                    remote_port,
-                                    friendnumber
-                            );
+                            send_tunnel_request_packet(remote_host, remote_port, friendnumber);
                         }
                     }
 
