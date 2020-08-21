@@ -290,8 +290,9 @@ void client_connected_loop_iteration(uint32_t friendnumber)
     fds = client_master_fdset;
 
     /* Handle accepting new connections */
-    if(program_mode != Mode_Client_Ping && client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
+    if(client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
     {
+        log_printf(L_DEBUG, "calling accept(%d)", bind_sockfd);
         accept_fd = accept(bind_sockfd, NULL, NULL);
         if(accept_fd != -1)
         {
