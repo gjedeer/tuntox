@@ -12,7 +12,7 @@
 const bool attempt_reconnect = true;
 
 /* The state machine */
-int state = CLIENT_STATE_INITIAL;
+int state = CLIENT_STATE_AWAIT_FRIENDSHIP;
 
 /* Used in ping mode */
 struct timespec ping_sent_time;
@@ -143,6 +143,10 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
     }
 
     tun = tunnel_create(client_tunnel.sockfd, rcvd_frame->connid, rcvd_frame->friendnumber);
+    if (!tun)
+    {
+        exit(1);
+    }
 
     /* Mark that we can accept() another connection */
     client_tunnel.sockfd = -1;
@@ -153,6 +157,11 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
     {
         log_printf(L_INFO, "Accepted a new connection on port %d\n", local_port);
     }
+    if(state != CLIENT_STATE_AWAIT_TUNNEL)
+    {
+        log_printf(L_WARNING, "Got ACK tunnel frame when state is %d", state);
+    }
+    state = CLIENT_STATE_CONNECTED;
     return 0;
 }
 
@@ -305,7 +314,7 @@ int do_client_loop(uint8_t *tox_id_str)
             /*
              * Send friend request
              */
-            case CLIENT_STATE_INITIAL:
+        case CLIENT_STATE_AWAIT_FRIENDSHIP:
                 {
                     uint8_t* data = (uint8_t *)"Hi, fellow tuntox instance!";
                     uint16_t length = sizeof(data);
@@ -346,11 +355,11 @@ int do_client_loop(uint8_t *tox_id_str)
 
                     invitation_sent_time = time(NULL);
                     invitations_sent++;
-                    state = CLIENT_STATE_REQUEST_SENT;
+                    state = CLIENT_STATE_AWAIT_FRIEND_CONNECTED;
                     log_printf(L_INFO, "Waiting for server to accept friend request...\n");
                 }
                 break;
-            case CLIENT_STATE_REQUEST_SENT:
+            case CLIENT_STATE_AWAIT_FRIEND_CONNECTED:
                 if(friend_connection_status != TOX_CONNECTION_NONE)
                 {
                     const char* status = readable_connection_status(friend_connection_status);
@@ -372,7 +381,7 @@ int do_client_loop(uint8_t *tox_id_str)
                             log_printf(L_WARNING, "When sending ping packet: %u", custom_packet_error);
                             exit(1);
                         }
-                        state = CLIENT_STATE_PING_SENT;
+                        state = CLIENT_STATE_AWAIT_PONG;
                         break;
                     case Mode_Client_Local_Port_Forward:
                         if(bind_sockfd < 0)
@@ -384,7 +393,7 @@ int do_client_loop(uint8_t *tox_id_str)
                         /* fall through... */
                     case Mode_Client_Pipe:
                         send_tunnel_request_packet(remote_host, remote_port, friendnumber);
-                        state = CLIENT_STATE_FORWARDING;
+                        state = CLIENT_STATE_AWAIT_TUNNEL;
                         break;
                     default:
                         log_printf(L_ERROR, "BUG: Impossible client mode at %s:%s", __FILE__, __LINE__);
@@ -406,14 +415,15 @@ int do_client_loop(uint8_t *tox_id_str)
                             exit(-1);
                         }
 
-                        state = CLIENT_STATE_INITIAL;
+                        state = CLIENT_STATE_AWAIT_FRIENDSHIP;
                     }
                 }
                 break;
-            case CLIENT_STATE_PING_SENT:
-                /* Just sit there and wait for pong */
+            case CLIENT_STATE_AWAIT_TUNNEL:
                 break;
-            case CLIENT_STATE_FORWARDING:
+            case CLIENT_STATE_AWAIT_PONG:
+                break;
+            case CLIENT_STATE_CONNECTED:
                 {
                     int accept_fd = 0;
                     int select_rv = 0;
