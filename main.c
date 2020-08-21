@@ -44,7 +44,7 @@ char config_path[500] = "/etc/tuntox/";
 /* Limit hostname and port in server */
 int nrules = 0;
 char rules_file[500] = "/etc/tuntox/rules";
-enum rules_policy_enum rules_policy = NONE;
+bool enforce_whitelist = false;
 rule *rules = NULL;
 
 /* Ports and hostname for port forwarding */
@@ -424,30 +424,24 @@ int handle_ping_frame(protocol_frame *rcvd_frame)
 
 bool check_requested_tunnel_against_rules(char *hostname, in_port_t port)
 {
-    switch(rules_policy)
-    {
-    case NONE:
-        return true;
-    case VALIDATE:
-        if(nrules > 0)
-        {
-            rule candidate, *found = NULL;
-            candidate.host = hostname;
-            candidate.port = port;
+    if (!enforce_whitelist) return true;
 
-            LL_SEARCH(rules, found, &candidate, rule_match);
-            if(!found)
-            {
-                log_printf(L_WARNING, "Rejected, request not in rules\n");
-            }
-            return found;
-        }
-        log_printf(L_WARNING, "Filter option active but no allowed host/port. All requests will be dropped.\n");
-        return false;
-    default:
-        log_printf(L_WARNING, "BUG: invalid rules_policy (impossible!)\n");
+    if (nrules <= 0)
+    {
+        log_printf(l_warning, "filter option active but no allowed host/port. all requests will be dropped.\n");
         return false;
     }
+
+    rule candidate, *found = NULL;
+    candidate.host = hostname;
+    candidate.port = port;
+
+    LL_SEARCH(rules, found, &candidate, rule_match);
+    if(!found)
+    {
+        log_printf(L_WARNING, "Rejected, request not in rules\n");
+    }
+    return found;
 }
 
 int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
@@ -847,7 +841,7 @@ void load_rules()
     nrules = valid_rules;
 
     log_printf(L_INFO, "Loaded %d rules\n", nrules);
-    if (nrules==0 && rules_policy != NONE){
+    if (nrules==0 && enforce_whitelist){
         log_printf(L_WARNING, "No rules loaded! NO CONNECTIONS WILL BE ALLOWED!\n");
     }
 }
@@ -1376,7 +1370,7 @@ int main(int argc, char *argv[])
                 break;
             case 'f':
                 strncpy(rules_file, optarg, sizeof(rules_file) - 1);
-                rules_policy = VALIDATE;
+                enforce_whitelist = true;
                 log_printf(L_INFO, "Filter policy set to VALIDATE\n");
                 break;
             case 's':
@@ -1477,7 +1471,7 @@ int main(int argc, char *argv[])
         log_printf(L_INFO, "Server in ToxID whitelisting mode - only clients listed with -i can connect");
     }
 
-    if((!client_mode) && (rules_policy != NONE))
+    if((!client_mode) && enforce_whitelist)
     {
         load_rules();
     }
