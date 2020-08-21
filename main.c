@@ -651,7 +651,7 @@ void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data,
     frame->data_length =                INT16_AT(data, 6);
     frame->data = (uint8_t *)(data + PROTOCOL_BUFFER_OFFSET);
     frame->friendnumber =               friendnumber;
-    log_printf(L_DEBUG, "Got protocol frame magic 0x%x type 0x%x from friend %d\n", frame->magic, frame->packet_type, frame->friendnumber);
+    log_printf(L_DEBUG2, "Got protocol frame magic 0x%x type 0x%x from friend %d\n", frame->magic, frame->packet_type, frame->friendnumber);
 
     if(len < (size_t)frame->data_length + PROTOCOL_BUFFER_OFFSET)
     {
@@ -1004,7 +1004,7 @@ int do_server_loop()
         tox_do_interval_ms = tox_iteration_interval(tox);
         tv.tv_usec = (tox_do_interval_ms % 1000) * 1000;
         tv.tv_sec = tox_do_interval_ms / 1000;
-        log_printf(L_DEBUG2, "Iteration interval: %dms\n", tox_do_interval_ms);
+        log_printf(L_DEBUG3, "Iteration interval: %dms\n", tox_do_interval_ms);
         gettimeofday(&tv_start, NULL);
 
         fds = master_server_fds;
@@ -1018,7 +1018,7 @@ int do_server_loop()
         }
         else if (select_rv == 0)
         {
-            log_printf(L_DEBUG2, "Nothing to read...");
+            log_printf(L_DEBUG3, "Nothing to read...");
         }
         else
         {
@@ -1026,10 +1026,10 @@ int do_server_loop()
             tmp = NULL;
             tun = NULL;
 
-            log_printf(L_DEBUG, "Starting tunnel iteration...");
+            log_printf(L_DEBUG2, "Starting tunnel iteration...");
             HASH_ITER(hh, by_id, tun, tmp)
             {
-                log_printf(L_DEBUG, "Current tunnel: %p", tun);
+                log_printf(L_DEBUG2, "Current tunnel: %p", tun);
                 if(FD_ISSET(tun->sockfd, &fds))
                 {
                     int nbytes = recv(tun->sockfd,
@@ -1080,7 +1080,7 @@ int do_server_loop()
                     }
                 }
             }
-            log_printf(L_DEBUG, "Tunnel iteration done");
+            log_printf(L_DEBUG2, "Tunnel iteration done");
 
             LL_FOREACH_SAFE(tunnels_to_delete, tunnel_list_entry, list_tmp)
             {
@@ -1313,18 +1313,10 @@ int main(int argc, char *argv[])
                     log_printf(L_ERROR, "Invalid value for -W option - use something like -W 127.0.0.1:22\n");
                     exit(1);
                 }
-                if(min_log_level == L_UNSET)
-                {
-                    min_log_level = L_ERROR;
-                }
                 break;
             case 'p':
                 /* Ping */
                 program_mode = Mode_Client_Ping;
-                if(min_log_level == L_UNSET)
-                {
-                    min_log_level = L_INFO;
-                }
                 break;
             case 'i':
                 /* Tox ID */
@@ -1369,8 +1361,12 @@ int main(int argc, char *argv[])
                     min_log_level = L_DEBUG2;
                     break;
                 case 3:
-                default:
                     min_log_level = L_DEBUG2;
+                    log_tox_trace = 1;
+                    break;
+                case 4:
+                default:
+                    min_log_level = L_DEBUG3;
                     log_tox_trace = 1;
                 }
                 break;
@@ -1456,7 +1452,17 @@ int main(int argc, char *argv[])
         log_printf(L_DEBUG, "Forwarding remote port %d to local port %d\n", remote_port, local_port);
         break;
     case Mode_Client_Pipe:
+        if(min_log_level == L_UNSET)
+        {
+            min_log_level = L_ERROR;
+        }
         log_printf(L_INFO, "Forwarding remote port %d to stdin/out\n", remote_port);
+        break;
+    case Mode_Client_Ping:
+        if(min_log_level == L_UNSET)
+        {
+            min_log_level = L_INFO;
+        }
         break;
     case Mode_Server:
         if(min_log_level == L_UNSET)
@@ -1472,7 +1478,9 @@ int main(int argc, char *argv[])
         {
             log_printf(L_INFO, "Server in ToxID whitelisting mode - only clients listed with -i can connect");
         }
-    default:;
+        break;
+    case Mode_Unspecified:
+        exit(1);
     }
 
     /* If shared secret has not been provided via -s, read from TUNTOX_SHARED_SECRET env variable */
