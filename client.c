@@ -39,7 +39,8 @@ int handle_pong_frame()
 
     if(program_mode == Mode_Client_Ping)
     {
-        state = CLIENT_STATE_SHUTDOWN;
+        log_printf(L_INFO, "Ping mode successful.  Exiting.");
+        exit(0);
     }
     return 0;
 }
@@ -324,7 +325,7 @@ int do_client_loop(uint8_t *tox_id_str)
 
                     if(invitations_sent > 0)
                     {
-                        log_printf(L_INFO, "Sending friend request #%d.", invitations_sent);
+                        log_printf(L_INFO, "Sending friend request #%d.", invitations_sent+1);
                     }
                     else
                     {
@@ -358,7 +359,40 @@ int do_client_loop(uint8_t *tox_id_str)
                 {
                     const char* status = readable_connection_status(friend_connection_status);
                     log_printf(L_INFO, "Friend request accepted (%s)!\n", status);
-                    state = CLIENT_STATE_REQUEST_ACCEPTED;
+
+                    switch (program_mode) {
+                    case Mode_Client_Ping:
+                        /* Send the ping packet */
+                        {
+                            uint8_t data[] = {
+                                0xa2, 0x6a, 0x01, 0x08, 0x00, 0x00, 0x00, 0x05,
+                                0x48, 0x65, 0x6c, 0x6c, 0x6f
+                            };
+                            clock_gettime(CLOCK_MONOTONIC, &ping_sent_time);
+                            tox_friend_send_lossless_packet(tox, friendnumber, data, sizeof(data), &custom_packet_error);
+                        }
+                        if(custom_packet_error != TOX_ERR_FRIEND_CUSTOM_PACKET_OK)
+                        {
+                            log_printf(L_WARNING, "When sending ping packet: %u", custom_packet_error);
+                            exit(1);
+                        }
+                        state = CLIENT_STATE_PING_SENT;
+                        break;
+                    case Mode_Client_Local_Port_Forward:
+                        if(bind_sockfd < 0)
+                        {
+                            log_printf(L_ERROR, "Shutting down - could not bind to listening port\n");
+                            exit(1);
+                        }
+                        /* fall through... */
+                    case Mode_Client_Pipe:
+                        send_tunnel_request_packet(remote_host, remote_port, friendnumber);
+                        state = CLIENT_STATE_WAIT_FOR_ACKTUNNEL;
+                        break;
+                    default:
+                        log_printf(L_ERROR, "BUG: Impossible client mode at %s:%s", __FILE__, __LINE__);
+                        exit(1);
+                    }
                 }
                 else
                 {
@@ -379,50 +413,8 @@ int do_client_loop(uint8_t *tox_id_str)
                     }
                 }
                 break;
-            case CLIENT_STATE_REQUEST_ACCEPTED:
-                switch (program_mode) {
-                case Mode_Client_Ping:
-                    /* Send the ping packet */
-                    {
-                        uint8_t data[] = {
-                            0xa2, 0x6a, 0x01, 0x08, 0x00, 0x00, 0x00, 0x05,
-                            0x48, 0x65, 0x6c, 0x6c, 0x6f
-                        };
-                        clock_gettime(CLOCK_MONOTONIC, &ping_sent_time);
-                        tox_friend_send_lossless_packet(tox, friendnumber, data, sizeof(data), &custom_packet_error);
-                    }
-                    if(custom_packet_error == TOX_ERR_FRIEND_CUSTOM_PACKET_OK)
-                    {
-                        state = CLIENT_STATE_PING_SENT;
-                    }
-                    else
-                    {
-                        log_printf(L_WARNING, "When sending ping packet: %u", custom_packet_error);
-                    }
-                    break;
-                case Mode_Client_Pipe:
-                    send_tunnel_request_packet(remote_host, remote_port, friendnumber);
-                    state = CLIENT_STATE_FORWARDING;
-                    break;
-                case Mode_Client_Local_Port_Forward:
-                    if(bind_sockfd < 0)
-                    {
-                        log_printf(L_ERROR, "Shutting down - could not bind to listening port\n");
-                        exit(1);
-                    }
-                    state = CLIENT_STATE_FORWARDING;
-                    break;
-                default:
-                    log_printf(L_ERROR, "BUG: Impossible client mode at %s:%s", __FILE__, __LINE__);
-                    exit(1);
-                }
-                break;
             case CLIENT_STATE_PING_SENT:
                 /* Just sit there and wait for pong */
-                break;
-            case CLIENT_STATE_REQUEST_TUNNEL:
-                send_tunnel_request_packet(remote_host, remote_port, friendnumber);
-                state = CLIENT_STATE_WAIT_FOR_ACKTUNNEL;
                 break;
             case CLIENT_STATE_WAIT_FOR_ACKTUNNEL:
                 /* client_tunnel.sockfd = 0; */
@@ -536,39 +528,10 @@ int do_client_loop(uint8_t *tox_id_str)
                     /* Check friend connection status changes */
                     if(friend_connection_status == TOX_CONNECTION_NONE)
                     {
-                        state = CLIENT_STATE_CONNECTION_LOST;
+                        log_printf(L_ERROR, "Lost connection to server.  Exiting.");
+                        exit(1);
                     }
                 }
-                break;
-            case CLIENT_STATE_CONNECTION_LOST:
-                /* Trying to reconnect here does not seem like a good idea. */
-                if(!attempt_reconnect)
-                {
-                    log_printf(L_DEBUG, "Exiting on CLIENT_STATE_CONNECTION_LOST");
-                    exit(1);
-                }
-
-                if(friend_connection_status == TOX_CONNECTION_NONE)
-                {
-                    /* https://github.com/TokTok/c-toxcore/blob/acb6b2d8543c8f2ea0c2e60dc046767cf5cc0de8/toxcore/tox.h#L1267 */
-                    TOX_ERR_FRIEND_DELETE tox_delete_error;
-
-                    log_printf(L_WARNING, "Lost connection to server, closing all tunnels and re-adding friend\n");
-                    client_close_all_connections();
-                    tox_friend_delete(tox, friendnumber, &tox_delete_error);
-                    if(tox_delete_error)
-                    {
-                        log_printf(L_ERROR, "Error when deleting server from friend list: %d\n", tox_delete_error);
-                    }
-                    state = CLIENT_STATE_INITIAL;
-                }
-                else
-                {
-                    state = CLIENT_STATE_FORWARDING;
-                }
-                break;
-            case CLIENT_STATE_SHUTDOWN:
-                exit(0);
                 break;
         }
 
