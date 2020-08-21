@@ -109,7 +109,7 @@ int allowed_toxid_cmp(allowed_toxid *a, allowed_toxid *b)
 }
 
 /* Comparison function for rule objects */
-int rule_cmp(rule *a, rule *b)
+int rule_match(rule *a, rule *b)
 {
     //log_printf(L_INFO, "Comparison result: %d %d\n", strcmp(a->host, b->host), (a->port == b->port));
     if ((strcmp(a->host, b->host)==0) && (a->port == b->port))
@@ -423,6 +423,34 @@ int handle_ping_frame(protocol_frame *rcvd_frame)
     return 0;
 }
 
+bool check_requested_tunnel_against_rules(char *hostname, in_port_t port)
+{
+    switch(rules_policy)
+    {
+    case NONE:
+        return true;
+    case VALIDATE:
+        if(nrules > 0)
+        {
+            rule candidate, *found = NULL;
+            candidate.host = hostname;
+            candidate.port = port;
+
+            LL_SEARCH(rules, found, &candidate, rule_match);
+            if(!found)
+            {
+                log_printf(L_WARNING, "Rejected, request not in rules\n");
+            }
+            return found;
+        }
+        log_printf(L_WARNING, "Filter option active but no allowed host/port. All requests will be dropped.\n");
+        return false;
+    default:
+        log_printf(L_WARNING, "BUG: invalid rules_policy (impossible!)\n");
+        return false;
+    }
+}
+
 int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
 {
     char *hostname = NULL;
@@ -450,29 +478,11 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
 
     log_printf(L_INFO, "Got a request to forward data from %s:%d\n", hostname, port);
 
-    // check rules
-    if(rules_policy == VALIDATE && nrules > 0)
+    if (!check_requested_tunnel_against_rules(hostname, port))
     {
-        rule temp_rule, *found = NULL;
-        temp_rule.host = hostname;
-        temp_rule.port = port;
-
-        LL_SEARCH(rules, found, &temp_rule, rule_cmp);
-        if(!found)
-        {
-            log_printf(L_WARNING, "Rejected, request not in rules\n");
-            free(hostname);
-            return -1;
-        }
-    }
-    else if (rules_policy != NONE)
-    {
-        log_printf(L_WARNING, "Filter option active but no allowed host/port. All requests will be dropped.\n");
         free(hostname);
         return -1;
     }
-
-
 
     tunnel_id = get_random_tunnel_id();
     log_printf(L_DEBUG, "Tunnel ID: %d\n", tunnel_id);
