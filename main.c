@@ -108,14 +108,13 @@ int allowed_toxid_cmp(allowed_toxid *a, allowed_toxid *b)
     return memcmp(a->toxid, b->toxid, TOX_PUBLIC_KEY_SIZE);
 }
 
-/* Comparison function for rule objects */
-int rule_match(rule *a, rule *b)
+/* Match rule r against candidate host, port. Returns 0 for match. */
+int rule_match(rule *r, rule *candidate)
 {
-    //log_printf(L_INFO, "Comparison result: %d %d\n", strcmp(a->host, b->host), (a->port == b->port));
-    if ((strcmp(a->host, b->host)==0) && (a->port == b->port))
-        return 0;
-    else
-        return -1;
+    bool host_match = !strcmp(r->host, "*") || !strcmp(r->host, candidate->host);
+    bool port_match = r->port == 0 || r->port == candidate->port;
+
+    return port_match && host_match ? 0 : -1;
 }
 
 void update_select_nfds(int fd)
