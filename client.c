@@ -79,8 +79,7 @@ int local_bind()
     setsockopt_status = setsockopt(bind_sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
     if(setsockopt_status < 0)
     {
-        log_printf(L_ERROR, "Could not set socket options: %s\n", 
-                strerror(errno));
+        log_printf(L_ERROR, "Could not set socket options: %s\n", strerror(errno));
         freeaddrinfo(res);
         exit(1);
     }
@@ -228,7 +227,7 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
 }
 
 /* Delete tunnel and clear client-side fdset */
-void client_close_tunnel(tunnel *tun) 
+void client_close_tunnel(tunnel *tun)
 {
     if(tun->sockfd)
     {
@@ -275,14 +274,123 @@ void client_close_all_connections()
 	}
 }
 
+void client_connected_loop_iteration(uint32_t friendnumber)
+{
+    static unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
+    static fd_set fds;
+    static struct timeval tv;
+
+    int accept_fd = 0;
+    int select_rv = 0;
+    tunnel *tmp = NULL;
+    tunnel *tun = NULL;
+
+    tv.tv_sec = 0;
+    tv.tv_usec = 20000;
+    fds = client_master_fdset;
+
+    /* Handle accepting new connections */
+    if(program_mode != Mode_Client_Ping && client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
+    {
+        accept_fd = accept(bind_sockfd, NULL, NULL);
+        if(accept_fd != -1)
+        {
+            log_printf(L_INFO, "Accepting a new connection - requesting tunnel...\n");
+
+            /* Open a new tunnel for this FD */
+            client_tunnel.sockfd = accept_fd;
+            send_tunnel_request_packet(remote_host, remote_port, friendnumber);
+        }
+    }
+
+    /* Handle reading from sockets */
+    select_rv = select(select_nfds, &fds, NULL, NULL, &tv);
+    if(select_rv == -1 || select_rv == 0)
+    {
+        if(select_rv == -1)
+        {
+            log_printf(L_DEBUG, "Reading from local socket failed: code=%d (%s)\n", errno, strerror(errno));
+        }
+        else
+        {
+            log_printf(L_DEBUG3, "Nothing to read...");
+        }
+    }
+    else
+    {
+        HASH_ITER(hh, by_id, tun, tmp)
+        {
+            if(FD_ISSET(tun->sockfd, &fds))
+            {
+                int nbytes;
+                if(program_mode == Mode_Client_Local_Port_Forward)
+                {
+                    nbytes = recv(tun->sockfd,
+                            tox_packet_buf + PROTOCOL_BUFFER_OFFSET,
+                            READ_BUFFER_SIZE, 0);
+                }
+                else
+                {
+                    nbytes = read(tun->sockfd,
+                            tox_packet_buf + PROTOCOL_BUFFER_OFFSET,
+                            READ_BUFFER_SIZE
+                    );
+                }
+
+                /* Check if connection closed */
+                if(nbytes == 0)
+                {
+                    uint8_t data[PROTOCOL_BUFFER_OFFSET];
+                    protocol_frame frame_st, *frame;
+
+                    log_printf(L_INFO, "Connection closed\n");
+
+                    frame = &frame_st;
+                    memset(frame, 0, sizeof(protocol_frame));
+                    frame->friendnumber = tun->friendnumber;
+                    frame->packet_type = PACKET_TYPE_TCP_FIN;
+                    frame->connid = tun->connid;
+                    frame->data_length = 0;
+                    send_frame(frame, data);
+                    if(tun->sockfd)
+                    {
+                        FD_CLR(tun->sockfd, &client_master_fdset);
+                    }
+                    tunnel_delete(tun);
+                }
+                else
+                {
+                    protocol_frame frame_st, *frame;
+
+                    frame = &frame_st;
+                    memset(frame, 0, sizeof(protocol_frame));
+                    frame->friendnumber = tun->friendnumber;
+                    frame->packet_type = PACKET_TYPE_TCP;
+                    frame->connid = tun->connid;
+                    frame->data_length = nbytes;
+                    send_frame(frame, tox_packet_buf);
+
+//                  printf("Wrote %d bytes from sock %d to tunnel %d\n", nbytes, tun->sockfd, tun->connid);
+                }
+            }
+        }
+    }
+
+    fds = client_master_fdset;
+
+    /* Check friend connection status changes */
+    if(friend_connection_status == TOX_CONNECTION_NONE)
+    {
+        log_printf(L_ERROR, "Lost connection to server.  Exiting.");
+        exit(1);
+    }
+}
+
 /* Main loop for the client */
 int do_client_loop(uint8_t *tox_id_str)
 {
-    unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     unsigned char tox_id[TOX_ADDRESS_SIZE];
     uint32_t friendnumber = 0;
-    struct timeval tv;
-    fd_set fds;
     static time_t invitation_sent_time = 0;
     uint32_t invitations_sent = 0;
     TOX_ERR_FRIEND_CUSTOM_PACKET custom_packet_error;
@@ -424,113 +532,7 @@ int do_client_loop(uint8_t *tox_id_str)
             case CLIENT_STATE_AWAIT_PONG:
                 break;
             case CLIENT_STATE_CONNECTED:
-                {
-                    int accept_fd = 0;
-                    int select_rv = 0;
-                    tunnel *tmp = NULL;
-                    tunnel *tun = NULL;
-
-                    tv.tv_sec = 0;
-                    tv.tv_usec = 20000;
-                    fds = client_master_fdset;
-
-                    /* Handle accepting new connections */
-                    if(program_mode != Mode_Client_Ping && client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
-                    {
-                        accept_fd = accept(bind_sockfd, NULL, NULL);
-                        if(accept_fd != -1)
-                        {
-                            log_printf(L_INFO, "Accepting a new connection - requesting tunnel...\n");
-
-                            /* Open a new tunnel for this FD */
-                            client_tunnel.sockfd = accept_fd;
-                            send_tunnel_request_packet(remote_host, remote_port, friendnumber);
-                        }
-                    }
-
-                    /* Handle reading from sockets */
-                    select_rv = select(select_nfds, &fds, NULL, NULL, &tv);
-                    if(select_rv == -1 || select_rv == 0)
-                    {
-                        if(select_rv == -1)
-                        {
-                            log_printf(L_DEBUG, "Reading from local socket failed: code=%d (%s)\n",
-                                    errno, strerror(errno));
-                        }
-                        else
-                        {
-                            log_printf(L_DEBUG3, "Nothing to read...");
-                        }
-                    }
-                    else
-                    {
-                        HASH_ITER(hh, by_id, tun, tmp)
-                        {
-                            if(FD_ISSET(tun->sockfd, &fds))
-                            {
-                                int nbytes;
-                                if(program_mode == Mode_Client_Local_Port_Forward)
-                                {
-                                    nbytes = recv(tun->sockfd, 
-                                            tox_packet_buf + PROTOCOL_BUFFER_OFFSET, 
-                                            READ_BUFFER_SIZE, 0);
-                                }
-                                else
-                                {
-                                    nbytes = read(tun->sockfd,
-                                            tox_packet_buf + PROTOCOL_BUFFER_OFFSET, 
-                                            READ_BUFFER_SIZE
-                                    );
-                                }
-
-                                /* Check if connection closed */
-                                if(nbytes == 0)
-                                {
-                                    uint8_t data[PROTOCOL_BUFFER_OFFSET];
-                                    protocol_frame frame_st, *frame;
-
-                                    log_printf(L_INFO, "Connection closed\n");
-
-                                    frame = &frame_st;
-                                    memset(frame, 0, sizeof(protocol_frame));
-                                    frame->friendnumber = tun->friendnumber;
-                                    frame->packet_type = PACKET_TYPE_TCP_FIN;
-                                    frame->connid = tun->connid;
-                                    frame->data_length = 0;
-                                    send_frame(frame, data);
-                                    if(tun->sockfd)
-                                    {
-                                        FD_CLR(tun->sockfd, &client_master_fdset);
-                                    }
-                                    tunnel_delete(tun);
-                                }
-                                else
-                                {
-                                    protocol_frame frame_st, *frame;
-
-                                    frame = &frame_st;
-                                    memset(frame, 0, sizeof(protocol_frame));
-                                    frame->friendnumber = tun->friendnumber;
-                                    frame->packet_type = PACKET_TYPE_TCP;
-                                    frame->connid = tun->connid;
-                                    frame->data_length = nbytes;
-                                    send_frame(frame, tox_packet_buf);
-
-    //                                printf("Wrote %d bytes from sock %d to tunnel %d\n", nbytes, tun->sockfd, tun->connid);
-                                }
-                            }
-                        }
-                    }
-
-                    fds = client_master_fdset;
-
-                    /* Check friend connection status changes */
-                    if(friend_connection_status == TOX_CONNECTION_NONE)
-                    {
-                        log_printf(L_ERROR, "Lost connection to server.  Exiting.");
-                        exit(1);
-                    }
-                }
+                client_connected_loop_iteration(friendnumber);
                 break;
         }
 
