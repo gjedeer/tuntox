@@ -35,7 +35,7 @@ int handle_pong_frame()
 
     log_printf(L_INFO, "GOT PONG! Time = %.3fs\n", secs2-secs1);
 
-    if(ping_mode)
+    if(program_mode == Mode_Client_Ping)
     {
         state = CLIENT_STATE_SHUTDOWN;
     }
@@ -116,12 +116,24 @@ int local_bind()
     return 0;
 }
 
+bool tunnel_client_mode()
+{
+    switch (program_mode) {
+    case Mode_Client_Local_Port_Forward:
+    case Mode_Client_Pipe:
+        return true;
+    case Mode_Client_Ping:
+    default:
+        return false;
+    }
+}
+
 /* Bind the client.sockfd to a tunnel */
 int handle_acktunnel_frame(protocol_frame *rcvd_frame)
 {
     tunnel *tun;
 
-    if(!client_mode)
+    if(!tunnel_client_mode())
     {
         log_printf(L_WARNING, "Got ACK tunnel frame when not in client mode!?\n");
         return -1;
@@ -136,23 +148,12 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
     /* Mark that we can accept() another connection */
     client_tunnel.sockfd = -1;
 
-//    printf("New tunnel ID: %d\n", tun->connid);
-
-    if(client_local_port_mode || client_pipe_mode)
+    update_select_nfds(tun->sockfd);
+    FD_SET(tun->sockfd, &client_master_fdset);
+    if(program_mode == Mode_Client_Local_Port_Forward)
     {
-        update_select_nfds(tun->sockfd);
-        FD_SET(tun->sockfd, &client_master_fdset);
-        if(client_local_port_mode)
-        {
-            log_printf(L_INFO, "Accepted a new connection on port %d\n", local_port);
-        }
+        log_printf(L_INFO, "Accepted a new connection on port %d\n", local_port);
     }
-    else
-    {
-        log_printf(L_ERROR, "This tunnel mode is not supported yet\n");
-        exit(1);
-    }
-
     return 0;
 }
 
@@ -175,24 +176,17 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
     {
         int sent_bytes;
 
-        if(client_pipe_mode)
-        {
-            sent_bytes = write(
-                    1, /* STDOUT */
-                    rcvd_frame->data + offset,
-                    rcvd_frame->data_length - offset
-            );
+        switch (program_mode) {
+        case Mode_Client_Pipe:
+            sent_bytes = write(1, rcvd_frame->data + offset, rcvd_frame->data_length - offset);
+            break;
+        case Mode_Client_Local_Port_Forward:
+            sent_bytes = send(tun->sockfd, rcvd_frame->data + offset, rcvd_frame->data_length - offset, MSG_NOSIGNAL);
+            break;
+        default:
+            log_printf(L_ERROR, "BUG: Impossible client mode at %s:%s", __FILE__, __LINE__);
+            return -1;
         }
-        else
-        {
-            sent_bytes = send(
-                    tun->sockfd, 
-                    rcvd_frame->data + offset,
-                    rcvd_frame->data_length - offset,
-                    MSG_NOSIGNAL
-            );
-        }
-
 
         if(sent_bytes < 0)
         {
@@ -296,7 +290,7 @@ int do_client_loop(uint8_t *tox_id_str)
         exit(1);
     }
 
-    if(!ping_mode && !client_pipe_mode)
+    if(program_mode == Mode_Client_Local_Port_Forward)
     {
         local_bind();
         signal(SIGPIPE, SIG_IGN);
@@ -400,17 +394,19 @@ int do_client_loop(uint8_t *tox_id_str)
                     break;
                 }
             case CLIENT_STATE_REQUEST_ACCEPTED:
-                if(ping_mode)
-                {
+                switch (program_mode) {
+                case Mode_Client_Ping:
                     state = CLIENT_STATE_SEND_PING;
-                }
-                else if(client_pipe_mode)
-                {
+                    break;
+                case Mode_Client_Pipe:
                     state = CLIENT_STATE_SETUP_PIPE;
-                }
-                else
-                {
+                    break;
+                case Mode_Client_Local_Port_Forward:
                     state = CLIENT_STATE_BIND_PORT;
+                    break;
+                default:
+                    log_printf(L_ERROR, "BUG: Impossible client mode at %s:%s", __FILE__, __LINE__);
+                    exit(1);
                 }
                 break;
             case CLIENT_STATE_SEND_PING:
@@ -490,8 +486,7 @@ int do_client_loop(uint8_t *tox_id_str)
                     fds = client_master_fdset;
 
                     /* Handle accepting new connections */
-                    if(!client_pipe_mode &&
-                        client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
+                    if(program_mode != Mode_Client_Ping && client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
                     {
                         accept_fd = accept(bind_sockfd, NULL, NULL);
                         if(accept_fd != -1)
@@ -529,7 +524,7 @@ int do_client_loop(uint8_t *tox_id_str)
                             if(FD_ISSET(tun->sockfd, &fds))
                             {
                                 int nbytes;
-                                if(client_local_port_mode)
+                                if(program_mode == Mode_Client_Local_Port_Forward)
                                 {
                                     nbytes = recv(tun->sockfd, 
                                             tox_packet_buf + PROTOCOL_BUFFER_OFFSET, 

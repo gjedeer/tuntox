@@ -80,26 +80,28 @@ typedef struct protocol_frame_t {
 } protocol_frame;
 
 /* Rules policy */
-enum rules_policy_enum { VALIDATE, NONE };
 typedef struct rule {
     uint16_t port;
     char * host;
     struct rule *next;
 } rule;
 
+enum Mode {
+    Mode_Unspecified,
+    Mode_Server,
+    Mode_Client_Local_Port_Forward,
+    Mode_Client_Pipe,
+    Mode_Client_Ping
+};
+
 /**** GLOBAL VARIABLES ****/
 extern Tox *tox;
-/* Whether we're a client */
-extern int client_mode;
-/* Just send a ping and exit */
-extern int ping_mode;
+
+/* Whether we're a server, client, etc. */
+extern enum Mode program_mode;
 /* TOX_CONNECTION global variable */
 extern TOX_CONNECTION connection_status;
 /* Open a local port and forward it */
-extern int client_local_port_mode;
-/* Forward stdin/stdout to remote machine - SSH ProxyCommand mode */
-extern int client_pipe_mode;
-/* Remote Tox ID in client mode */
 extern uint8_t *remote_tox_id;
 /* Ports and hostname for port forwarding */
 extern int remote_port;

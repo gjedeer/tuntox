@@ -3,6 +3,8 @@
 #include "tox_bootstrap.h"
 #include "log.h"
 
+#define LOG_IP_ADDRESS
+
 #ifdef __MACH__
     #include "mach.h"
 #endif
@@ -14,19 +16,12 @@ TOX_CONNECTION connection_status = TOX_CONNECTION_NONE;
 TOX_CONNECTION friend_connection_status = TOX_CONNECTION_NONE;
 /** CONFIGURATION OPTIONS **/
 /* Whether we're a client */
-int client_mode = 0;
+
 
 /* Don't bootstrap nodes */
 int skip_bootstrap = 1;
 
-/* Just send a ping and exit */
-int ping_mode = 0;
-
-/* Open a local port and forward it */
-int client_local_port_mode = 0;
-
-/* Forward stdin/stdout to remote machine - SSH ProxyCommand mode */
-int client_pipe_mode = 0;
+enum Mode program_mode = Mode_Unspecified;
 
 /* Remote Tox ID in client mode */
 uint8_t *remote_tox_id = NULL;
@@ -39,7 +34,7 @@ long int udp_start_port = 0;
 long int udp_end_port = 0;
 
 /* Directory with config and tox save */
-char config_path[500] = "/etc/tuntox/";
+char *config_path = "/etc/tuntox/";
 
 /* Limit hostname and port in server */
 int tunnel_target_whitelist_size = 0;
@@ -68,7 +63,7 @@ char shared_secret[TOX_MAX_FRIEND_REQUEST_LENGTH];
 int server_whitelist_mode = 0;
 allowed_toxid *allowed_toxids = NULL;
 
-int load_saved_toxid_in_client_mode = 0;
+bool config_path_modified = false;
 
 fd_set master_server_fds;
 
@@ -452,9 +447,9 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
     int sockfd = 0;
     uint16_t tunnel_id;
 
-    if(client_mode)
+    if(program_mode != Mode_Server)
     {
-        log_printf(L_WARNING, "Got tunnel request frame from friend #%d when in client mode\n", rcvd_frame->friendnumber);
+        log_printf(L_WARNING, "Got tunnel request frame from friend #%d but not in server mode\n", rcvd_frame->friendnumber);
         return -1;
     }
 
@@ -592,15 +587,9 @@ int handle_frame(protocol_frame *frame)
             return handle_pong_frame(frame);
             break;
         case PACKET_TYPE_TCP:
-            if(client_mode)
-            {
-                return handle_server_tcp_frame(frame);
-            }
-            else
-            {
-                return handle_client_tcp_frame(frame);
-            }
-            break;
+            return program_mode != Mode_Server
+                ? handle_server_tcp_frame(frame)
+                : handle_client_tcp_frame(frame);
         case PACKET_TYPE_REQUESTTUNNEL:
             handle_request_tunnel_frame(frame);
             break;
@@ -608,15 +597,9 @@ int handle_frame(protocol_frame *frame)
             handle_acktunnel_frame(frame);
             break;
         case PACKET_TYPE_TCP_FIN:
-            if(client_mode)
-            {
-                return handle_server_tcp_fin_frame(frame);
-            }
-            else
-            {
-                return handle_client_tcp_fin_frame(frame);
-            }
-            break;
+            return program_mode != Mode_Server
+                ? handle_server_tcp_fin_frame(frame)
+                : handle_client_tcp_fin_frame(frame);
         default:
             log_printf(L_DEBUG, "Got unknown packet type 0x%x from friend %d\n",
                     frame->packet_type,
@@ -672,14 +655,16 @@ void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data,
 
     if(len < (size_t)frame->data_length + PROTOCOL_BUFFER_OFFSET)
     {
-        log_printf(L_WARNING, "Received frame too small (attempted buffer overflow?): %d bytes, excepted at least %d bytes\n", len, frame->data_length + PROTOCOL_BUFFER_OFFSET);
+        log_printf(L_WARNING, "Received frame too small (attempted buffer overflow?): %d bytes, excepted at least %d bytes\n",
+                   len, frame->data_length + PROTOCOL_BUFFER_OFFSET);
         free(frame);
         return;
     }
 
     if(frame->data_length > (TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET))
     {
-        log_printf(L_WARNING, "Declared data length too big (attempted buffer overflow?): %d bytes, excepted at most %d bytes\n", frame->data_length, (TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET));
+        log_printf(L_WARNING, "Declared data length too big (attempted buffer overflow?): %d bytes, excepted at most %d bytes\n",
+                   frame->data_length, (TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET));
         free(frame);
         return;
     }
@@ -772,12 +757,13 @@ static size_t load_save(uint8_t **out_data)
 {
     void *data;
     uint32_t size;
-    uint8_t path_real[512], *p;
+    uint8_t path_real[PATH_MAX], *p;
 
     strncpy((char *)path_real, config_path, sizeof(path_real));
 
     p = path_real + strlen((char *)path_real);
-    memcpy(p, "tox_save", sizeof("tox_save"));
+    char basename[] = "/tox_save";
+    memcpy(p, "/tox_save", sizeof(basename));
 
     data = file_raw((char *)path_real, &size);
 
@@ -857,7 +843,7 @@ void tunnel_target_whitelist_load()
     }
     fclose(file);
 
-    log_printf(L_INFO, "Loaded %d rules\n", tunnel_target_whitelist_size);
+    log_printf(L_INFO, "Loaded %d rule%s\n", tunnel_target_whitelist_size, tunnel_target_whitelist_size == 1 ? "" : "s");
     if (tunnel_target_whitelist_size == 0 && tunnel_target_whitelist_enforced){
         log_printf(L_WARNING, "No rules loaded! NO CONNECTIONS WILL BE ALLOWED!\n");
     }
@@ -969,7 +955,7 @@ void handle_friend_connection_status(Tox *tox, uint32_t friend_number, TOX_CONNE
     if(connection_status == TOX_CONNECTION_UDP)
         log_friend_ip_address(tox, friend_number);
 #endif
-    if(client_mode)
+    if(program_mode != Mode_Server)
     {
         friend_connection_status = connection_status;
     }
@@ -1306,29 +1292,22 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:s:f:W:dqhSF:DU:t:u:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:s:f:W:vdqhSF:DU:t:u:")) != -1)
     {
         switch(oc)
         {
             case 'L':
                 /* Local port forwarding */
-                client_mode = 1;
-                client_local_port_mode = 1;
+                program_mode = Mode_Client_Local_Port_Forward;
                 if(!parse_local_port_forward(optarg, &local_port, &remote_host, &remote_port))
                 {
                     log_printf(L_ERROR, "Invalid value for -L option - use something like -L 22:127.0.0.1:22\n");
                     exit(1);
                 }
-                if(min_log_level == L_UNSET)
-                {
-                    min_log_level = L_INFO;
-                }
-                log_printf(L_DEBUG, "Forwarding remote port %d to local port %d\n", remote_port, local_port);
                 break;
             case 'W':
                 /* Pipe forwarding */
-                client_mode = 1;
-                client_pipe_mode = 1;
+                program_mode = Mode_Client_Pipe;
                 if(!parse_pipe_port_forward(optarg, &remote_host, &remote_port) || remote_port == 0)
                 {
                     log_printf(L_ERROR, "Invalid value for -W option - use something like -W 127.0.0.1:22\n");
@@ -1338,12 +1317,10 @@ int main(int argc, char *argv[])
                 {
                     min_log_level = L_ERROR;
                 }
-                log_printf(L_INFO, "Forwarding remote port %d to stdin/out\n", remote_port);
                 break;
             case 'p':
                 /* Ping */
-                client_mode = 1;
-                ping_mode = 1;
+                program_mode = Mode_Client_Ping;
                 if(min_log_level == L_UNSET)
                 {
                     min_log_level = L_INFO;
@@ -1368,20 +1345,12 @@ int main(int argc, char *argv[])
                 break;
             case 'C':
                 /* Config directory */
-                strncpy(config_path, optarg, sizeof(config_path) - 1);
-                if(optarg[strlen(optarg) - 1] != '/')
-                {
-                    int optarg_len = strlen(optarg);
-
-                    config_path[optarg_len] = '/';
-                    config_path[optarg_len + 1] = '\0';
-                }
-                load_saved_toxid_in_client_mode = 1;
+                config_path = strdup(optarg);
+                config_path_modified = 1;
                 break;
             case 'f':
                 tunnel_target_whitelist_file = strdup(optarg);
                 tunnel_target_whitelist_enforced = true;
-                log_printf(L_INFO, "Whitelist enforced on outgoing connections: only matched hosts/ports will be allowed.\n");
                 break;
             case 's':
                 /* Shared secret */
@@ -1389,6 +1358,7 @@ int main(int argc, char *argv[])
                 memset(shared_secret, 0, TOX_MAX_FRIEND_REQUEST_LENGTH);
                 strncpy(shared_secret, optarg, TOX_MAX_FRIEND_REQUEST_LENGTH-1);
                 break;
+            case 'v':
             case 'd':
                 switch(++verbosity)
                 {
@@ -1425,8 +1395,8 @@ int main(int argc, char *argv[])
                 tcp_relay_port = strtol(optarg, NULL, 10);
                 if(errno != 0 || tcp_relay_port < 0 || tcp_relay_port > 65535)
                 {
-                tcp_relay_port = 1024 + (rand() % 64511);
-                log_printf(L_WARNING, "Ignored -t %s: TCP port number needs to be a number between 0 and 65535.");
+                    tcp_relay_port = 1024 + (rand() % 64511);
+                    log_printf(L_WARNING, "Ignored -t %s: TCP port number needs to be a number between 0 and 65535.");
                 }
                 break;
             case 'u':
@@ -1465,25 +1435,44 @@ int main(int argc, char *argv[])
         }
     }
 
-    if(!client_mode && min_log_level == L_UNSET)
-    {
-        min_log_level = L_INFO;
+    switch (program_mode) {
+    case Mode_Client_Local_Port_Forward:
+    case Mode_Client_Pipe:
+    case Mode_Client_Ping:
+        if(!remote_tox_id)
+        {
+            log_printf(L_ERROR, "Tox id is required in client mode. Use -i 58435984ABCDEF475...\n");
+            exit(1);
+        }
+        break;
+    case Mode_Unspecified:
+        program_mode = Mode_Server;
+    case Mode_Server:
+        break;
     }
 
-    if(client_mode && !remote_tox_id)
-    {
-        log_printf(L_ERROR, "Tox id is required in client mode. Use -i 58435984ABCDEF475...\n");
-        exit(1);
-    }
-
-    if(!client_mode && server_whitelist_mode)
-    {
-        log_printf(L_INFO, "Server in ToxID whitelisting mode - only clients listed with -i can connect");
-    }
-
-    if(!client_mode && tunnel_target_whitelist_enforced)
-    {
-        tunnel_target_whitelist_load();
+    switch (program_mode) {
+    case Mode_Client_Local_Port_Forward:
+        log_printf(L_DEBUG, "Forwarding remote port %d to local port %d\n", remote_port, local_port);
+        break;
+    case Mode_Client_Pipe:
+        log_printf(L_INFO, "Forwarding remote port %d to stdin/out\n", remote_port);
+        break;
+    case Mode_Server:
+        if(min_log_level == L_UNSET)
+        {
+            min_log_level = L_INFO;
+        }
+        if(tunnel_target_whitelist_enforced)
+        {
+            log_printf(L_INFO, "Whitelist enforced on outgoing connections: only matched hosts/ports will be allowed.\n");
+            tunnel_target_whitelist_load();
+        }
+        if(server_whitelist_mode)
+        {
+            log_printf(L_INFO, "Server in ToxID whitelisting mode - only clients listed with -i can connect");
+        }
+    default:;
     }
 
     /* If shared secret has not been provided via -s, read from TUNTOX_SHARED_SECRET env variable */
@@ -1525,7 +1514,7 @@ int main(int argc, char *argv[])
         tox_options.end_port
     );
 
-    if((!client_mode) || load_saved_toxid_in_client_mode)
+    if(program_mode == Mode_Server || config_path_modified)
     {
         save_size = load_save(&save_data);
         if(save_data && save_size)
@@ -1564,10 +1553,10 @@ int main(int argc, char *argv[])
     tox_callback_self_connection_status(tox, handle_connection_status_change);
     tox_callback_friend_connection_status(tox, handle_friend_connection_status);
 
-    if (!skip_bootstrap)
+    if(!skip_bootstrap)
         do_bootstrap(tox);
 
-    if((!client_mode) || load_saved_toxid_in_client_mode)
+    if(program_mode == Mode_Server || config_path_modified)
     {
         write_save(tox);
     }
@@ -1591,16 +1580,14 @@ int main(int argc, char *argv[])
         to_hex(readable_dht_key, dht_key, TOX_PUBLIC_KEY_SIZE);
         log_printf(L_DEBUG, "DHT key: %s\n", readable_dht_key);
 
-        if (client_mode)
+        if (program_mode == Mode_Server)
         {
-            do_client_loop(remote_tox_id);
+            tox_callback_friend_request(tox, accept_friend_request);
+            return do_server_loop();
         }
         else
         {
-            tox_callback_friend_request(tox, accept_friend_request);
-            do_server_loop();
+            return do_client_loop(remote_tox_id);
         }
     }
-
-    return 0;
 }
