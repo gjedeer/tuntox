@@ -9,6 +9,8 @@
 #include "main.h"
 #include "client.h"
 
+const bool attempt_reconnect = true;
+
 /* The state machine */
 int state = CLIENT_STATE_INITIAL;
 
@@ -296,8 +298,6 @@ int do_client_loop(uint8_t *tox_id_str)
         signal(SIGPIPE, SIG_IGN);
     }
 
-    log_printf(L_INFO, "Connecting to Tox...\n");
-
     while(1)
     {
         /* Let tox do its stuff */
@@ -309,16 +309,9 @@ int do_client_loop(uint8_t *tox_id_str)
              * Send friend request
              */
             case CLIENT_STATE_INITIAL:
-                if(connection_status != TOX_CONNECTION_NONE)
-                {
-                    state = CLIENT_STATE_CONNECTED;
-                }
-                break;
-            case CLIENT_STATE_CONNECTED:
                 {
                     uint8_t* data = (uint8_t *)"Hi, fellow tuntox instance!";
                     uint16_t length = sizeof(data);
-					/* https://github.com/TokTok/c-toxcore/blob/acb6b2d8543c8f2ea0c2e60dc046767cf5cc0de8/toxcore/tox.h#L1168 */
                     TOX_ERR_FRIEND_ADD add_error;
 
                     if(use_shared_secret)
@@ -329,13 +322,13 @@ int do_client_loop(uint8_t *tox_id_str)
                         log_printf(L_DEBUG, "Sent shared secret of length %u\n", length);
                     }
 
-                    if(invitations_sent == 0)
+                    if(invitations_sent > 0)
                     {
-                        log_printf(L_INFO, "Connected. Sending friend request.\n");
+                        log_printf(L_INFO, "Sending friend request #%d.", invitations_sent);
                     }
                     else
                     {
-                        log_printf(L_INFO, "Sending another friend request.\n");
+                        log_printf(L_INFO, "Sending friend request.");
                     }
 
                     friendnumber = tox_friend_add(
@@ -356,123 +349,84 @@ int do_client_loop(uint8_t *tox_id_str)
 
                     invitation_sent_time = time(NULL);
                     invitations_sent++;
-                    state = CLIENT_STATE_SENTREQUEST;
-                    log_printf(L_INFO, "Waiting for friend to accept us...\n");
+                    state = CLIENT_STATE_REQUEST_SENT;
+                    log_printf(L_INFO, "Waiting for server to accept friend request...\n");
                 }
                 break;
-            case CLIENT_STATE_SENTREQUEST:
+            case CLIENT_STATE_REQUEST_SENT:
+                if(friend_connection_status != TOX_CONNECTION_NONE)
                 {
-                    {
-                        if(friend_connection_status != TOX_CONNECTION_NONE)
-                        {
-                            const char* status = readable_connection_status(friend_connection_status);
-                            log_printf(L_INFO, "Friend request accepted (%s)!\n", status);
-                            state = CLIENT_STATE_REQUEST_ACCEPTED;
-                        }
-                        else
-                        {
-                            const int INVITATION_SEND_INTERVAL = 90;
-                            if (time(NULL) - invitation_sent_time > INVITATION_SEND_INTERVAL)
-                            {
-                                TOX_ERR_FRIEND_DELETE error = 0;
-
-                                log_printf(L_INFO, "Sending another friend request...");
-                                tox_friend_delete(
-                                        tox,
-                                        friendnumber,
-                                        &error);
-                                if(error != TOX_ERR_FRIEND_DELETE_OK)
-                                {
-                                    log_printf(L_ERROR, "Error %u deleting friend before reconnection\n", error);
-                                    exit(-1);
-                                }
-
-                                state = CLIENT_STATE_CONNECTED;
-                            }
-                        }
-                    }
-                    break;
+                    const char* status = readable_connection_status(friend_connection_status);
+                    log_printf(L_INFO, "Friend request accepted (%s)!\n", status);
+                    state = CLIENT_STATE_REQUEST_ACCEPTED;
                 }
+                else
+                {
+                    const int INVITATION_SEND_INTERVAL = 90;
+                    if (time(NULL) - invitation_sent_time > INVITATION_SEND_INTERVAL)
+                    {
+                        TOX_ERR_FRIEND_DELETE error = 0;
+
+                        log_printf(L_INFO, "Friend request timed out.  Sending another...");
+                        tox_friend_delete(tox, friendnumber, &error);
+                        if(error != TOX_ERR_FRIEND_DELETE_OK)
+                        {
+                            log_printf(L_ERROR, "Error %u deleting friend before reconnection\n", error);
+                            exit(-1);
+                        }
+
+                        state = CLIENT_STATE_INITIAL;
+                    }
+                }
+                break;
             case CLIENT_STATE_REQUEST_ACCEPTED:
                 switch (program_mode) {
                 case Mode_Client_Ping:
-                    state = CLIENT_STATE_SEND_PING;
+                    /* Send the ping packet */
+                    {
+                        uint8_t data[] = {
+                            0xa2, 0x6a, 0x01, 0x08, 0x00, 0x00, 0x00, 0x05,
+                            0x48, 0x65, 0x6c, 0x6c, 0x6f
+                        };
+                        clock_gettime(CLOCK_MONOTONIC, &ping_sent_time);
+                        tox_friend_send_lossless_packet(tox, friendnumber, data, sizeof(data), &custom_packet_error);
+                    }
+                    if(custom_packet_error == TOX_ERR_FRIEND_CUSTOM_PACKET_OK)
+                    {
+                        state = CLIENT_STATE_PING_SENT;
+                    }
+                    else
+                    {
+                        log_printf(L_WARNING, "When sending ping packet: %u", custom_packet_error);
+                    }
                     break;
                 case Mode_Client_Pipe:
-                    state = CLIENT_STATE_SETUP_PIPE;
+                    send_tunnel_request_packet(remote_host, remote_port, friendnumber);
+                    state = CLIENT_STATE_FORWARDING;
                     break;
                 case Mode_Client_Local_Port_Forward:
-                    state = CLIENT_STATE_BIND_PORT;
+                    if(bind_sockfd < 0)
+                    {
+                        log_printf(L_ERROR, "Shutting down - could not bind to listening port\n");
+                        exit(1);
+                    }
+                    state = CLIENT_STATE_FORWARDING;
                     break;
                 default:
                     log_printf(L_ERROR, "BUG: Impossible client mode at %s:%s", __FILE__, __LINE__);
                     exit(1);
                 }
                 break;
-            case CLIENT_STATE_SEND_PING:
-                /* Send the ping packet */
-                {
-                    uint8_t data[] = {
-                        0xa2, 0x6a, 0x01, 0x08, 0x00, 0x00, 0x00, 0x05, 
-                        0x48, 0x65, 0x6c, 0x6c, 0x6f
-                    };
-
-                    clock_gettime(CLOCK_MONOTONIC, &ping_sent_time);
-                    tox_friend_send_lossless_packet(
-                            tox,
-                            friendnumber,
-                            data,
-                            sizeof(data),
-                            &custom_packet_error
-                    );
-                }
-                if(custom_packet_error == TOX_ERR_FRIEND_CUSTOM_PACKET_OK)
-                {
-                    state = CLIENT_STATE_PING_SENT;
-                }
-                else
-                {
-                    log_printf(L_WARNING, "When sending ping packet: %u", custom_packet_error);
-                }
-                break;
             case CLIENT_STATE_PING_SENT:
                 /* Just sit there and wait for pong */
                 break;
-
-            case CLIENT_STATE_BIND_PORT:
-                if(bind_sockfd < 0)
-                {
-                    log_printf(L_ERROR, "Shutting down - could not bind to listening port\n");
-                    state = CLIENT_STATE_SHUTDOWN;
-                }
-                else
-                {
-                    state = CLIENT_STATE_FORWARDING;
-                }
-                break;
-            case CLIENT_STATE_SETUP_PIPE:
-                send_tunnel_request_packet(
-                        remote_host,
-                        remote_port,
-                        friendnumber
-                );
-                state = CLIENT_STATE_FORWARDING;
-                break;
             case CLIENT_STATE_REQUEST_TUNNEL:
-                send_tunnel_request_packet(
-                        remote_host,
-                        remote_port,
-                        friendnumber
-                );
+                send_tunnel_request_packet(remote_host, remote_port, friendnumber);
                 state = CLIENT_STATE_WAIT_FOR_ACKTUNNEL;
                 break;
             case CLIENT_STATE_WAIT_FOR_ACKTUNNEL:
-                client_tunnel.sockfd = 0;
-                send_tunnel_request_packet(
-                        remote_host,
-                        remote_port,
-                        friendnumber
-                );
+                /* client_tunnel.sockfd = 0; */
+                /* send_tunnel_request_packet(remote_host, remote_port, friendnumber); */
                 break;
             case CLIENT_STATE_FORWARDING:
                 {
@@ -514,7 +468,7 @@ int do_client_loop(uint8_t *tox_id_str)
                         }
                         else
                         {
-                            log_printf(L_DEBUG2, "Nothing to read...");
+                            log_printf(L_DEBUG3, "Nothing to read...");
                         }
                     }
                     else
@@ -587,31 +541,32 @@ int do_client_loop(uint8_t *tox_id_str)
                 }
                 break;
             case CLIENT_STATE_CONNECTION_LOST:
+                /* Trying to reconnect here does not seem like a good idea. */
+                if(!attempt_reconnect)
                 {
-                    {
-                        if(friend_connection_status == TOX_CONNECTION_NONE)
-                        {
-                            /* https://github.com/TokTok/c-toxcore/blob/acb6b2d8543c8f2ea0c2e60dc046767cf5cc0de8/toxcore/tox.h#L1267 */
-                            TOX_ERR_FRIEND_DELETE tox_delete_error;
+                    log_printf(L_DEBUG, "Exiting on CLIENT_STATE_CONNECTION_LOST");
+                    exit(1);
+                }
 
-                            log_printf(L_WARNING, "Lost connection to server, closing all tunnels and re-adding friend\n");
-                            client_close_all_connections();
-                            tox_friend_delete(tox, friendnumber, &tox_delete_error);
-                            if(tox_delete_error)
-                            {
-                                log_printf(L_ERROR, "Error when deleting server from friend list: %d\n", tox_delete_error);
-                            }
-                            state = CLIENT_STATE_INITIAL;
-                        }
-                        else
-                        {
-                            state = CLIENT_STATE_FORWARDING;
-                        }
+                if(friend_connection_status == TOX_CONNECTION_NONE)
+                {
+                    /* https://github.com/TokTok/c-toxcore/blob/acb6b2d8543c8f2ea0c2e60dc046767cf5cc0de8/toxcore/tox.h#L1267 */
+                    TOX_ERR_FRIEND_DELETE tox_delete_error;
+
+                    log_printf(L_WARNING, "Lost connection to server, closing all tunnels and re-adding friend\n");
+                    client_close_all_connections();
+                    tox_friend_delete(tox, friendnumber, &tox_delete_error);
+                    if(tox_delete_error)
+                    {
+                        log_printf(L_ERROR, "Error when deleting server from friend list: %d\n", tox_delete_error);
                     }
+                    state = CLIENT_STATE_INITIAL;
+                }
+                else
+                {
+                    state = CLIENT_STATE_FORWARDING;
                 }
                 break;
-            case 0xffffffff:
-                log_printf(L_ERROR, "You forgot a break statement\n");
             case CLIENT_STATE_SHUTDOWN:
                 exit(0);
                 break;
