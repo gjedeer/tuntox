@@ -290,8 +290,8 @@ void client_connected_loop_iteration(uint32_t friendnumber)
     /* Handle accepting new connections */
     if(client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
     {
-        log_printf(L_DEBUG, "calling accept(%d)", bind_sockfd);
         accept_fd = accept(bind_sockfd, NULL, NULL);
+        log_printf(L_DEBUG4, "calling accept(%d)", bind_sockfd);
         if(accept_fd != -1)
         {
             log_printf(L_INFO, "Accepting a new connection - requesting tunnel...\n");
