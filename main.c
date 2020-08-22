@@ -651,7 +651,7 @@ void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data,
     frame->data_length =                INT16_AT(data, 6);
     frame->data = (uint8_t *)(data + PROTOCOL_BUFFER_OFFSET);
     frame->friendnumber =               friendnumber;
-    log_printf(L_DEBUG2, "Got protocol frame magic 0x%x type 0x%x from friend %d\n", frame->magic, frame->packet_type, frame->friendnumber);
+    log_printf(L_DEBUG4, "Got protocol frame magic 0x%x type 0x%x from friend %d\n", frame->magic, frame->packet_type, frame->friendnumber);
 
     if(len < (size_t)frame->data_length + PROTOCOL_BUFFER_OFFSET)
     {
@@ -1040,10 +1040,10 @@ int do_server_loop()
             tmp = NULL;
             tun = NULL;
 
-            log_printf(L_DEBUG2, "Starting tunnel iteration...");
+            log_printf(L_DEBUG3, "Starting tunnel iteration...");
             HASH_ITER(hh, by_id, tun, tmp)
             {
-                log_printf(L_DEBUG2, "Current tunnel: %p", tun);
+                log_printf(L_DEBUG3, "Current tunnel: %p", tun);
                 if(FD_ISSET(tun->sockfd, &fds))
                 {
                     tox_timer_do_sleep = true;
@@ -1093,7 +1093,7 @@ int do_server_loop()
                     }
                 }
             }
-            log_printf(L_DEBUG2, "Tunnel iteration done");
+            log_printf(L_DEBUG3, "Tunnel iteration done");
 
             LL_FOREACH_SAFE(tunnels_to_delete, tunnel_list_entry, list_tmp)
             {

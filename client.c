@@ -314,7 +314,7 @@ void client_connected_loop_iteration(uint32_t friendnumber)
         }
         else
         {
-            log_printf(L_DEBUG3, "Nothing to read...");
+            log_printf(L_DEBUG4, "Nothing to read...");
         }
     }
     else
