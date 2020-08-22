@@ -94,6 +94,13 @@ enum Mode {
     Mode_Client_Ping
 };
 
+struct tox_timer {
+    uint32_t tox_iteration_interval_ms;
+    struct timeval tv, tv_start;
+};
+struct tox_timer init_tox_timer(Tox *tox);
+void run_tox_timer(Tox *tox, struct tox_timer t);
+
 /**** GLOBAL VARIABLES ****/
 extern Tox *tox;
 

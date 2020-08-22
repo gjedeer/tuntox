@@ -7,6 +7,8 @@
 #define L_DEBUG		7
 #define L_DEBUG2	8
 #define L_DEBUG3	9
+#define L_DEBUG4	10
+#define L_DEBUG5	11
 
 #define L_UNSET		0x29a
 

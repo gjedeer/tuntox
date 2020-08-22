@@ -973,44 +973,58 @@ void cleanup()
     log_close();
 }
 
+struct tox_timer init_tox_timer(Tox *tox)
+{
+    struct tox_timer t;
+    t.tox_iteration_interval_ms = tox_iteration_interval(tox);
+    log_printf(L_DEBUG5, "Iteration interval: %dms\n", t.tox_iteration_interval_ms);
+
+    gettimeofday(&t.tv_start, NULL);
+
+    t.tv.tv_usec = (t.tox_iteration_interval_ms % 1000) * 1000;
+    t.tv.tv_sec = t.tox_iteration_interval_ms / 1000;
+    return t;
+}
+
+void run_tox_timer(Tox *tox, struct tox_timer t)
+{
+    struct timeval tv_end;
+    gettimeofday(&tv_end, NULL);
+    unsigned long long ms_elapsed = tv_end.tv_sec + tv_end.tv_usec/1000 - t.tv_start.tv_sec - t.tv_start.tv_usec/1000;
+
+    if(ms_elapsed < t.tox_iteration_interval_ms)
+    {
+        log_printf(L_DEBUG5, "Sleeping for %d ms extra to prevent high CPU usage\n", t.tox_iteration_interval_ms - ms_elapsed);
+        usleep((t.tox_iteration_interval_ms - ms_elapsed) * 1000);
+    }
+}
 
 int do_server_loop()
 {
-    struct timeval tv, tv_start, tv_end;
-    unsigned long long ms_start, ms_end;
     fd_set fds;
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     tunnel *tun = NULL;
     tunnel *tmp = NULL;
-    int sent_data = 0;
 
     tox_callback_friend_lossless_packet(tox, parse_lossless_packet);
-
-    tv.tv_sec = 0;
-    tv.tv_usec = 20000;
 
     FD_ZERO(&master_server_fds);
 
     while(1)
     {
-        uint32_t tox_do_interval_ms;
+        bool tox_timer_do_sleep = false;
         int select_rv = 0;
-        sent_data = 0;
 
         /* Let tox do its stuff */
         tox_iterate(tox, NULL);
 
         /* Get the desired sleep time, used in select() later */
-        tox_do_interval_ms = tox_iteration_interval(tox);
-        tv.tv_usec = (tox_do_interval_ms % 1000) * 1000;
-        tv.tv_sec = tox_do_interval_ms / 1000;
-        log_printf(L_DEBUG3, "Iteration interval: %dms\n", tox_do_interval_ms);
-        gettimeofday(&tv_start, NULL);
+        struct tox_timer t = init_tox_timer(tox);
 
         fds = master_server_fds;
 
         /* Poll for data from our client connection */
-        select_rv = select(select_nfds, &fds, NULL, NULL, &tv);
+        select_rv = select(select_nfds, &fds, NULL, NULL, &t.tv);
         if(select_rv == -1)
         {
             log_printf(L_DEBUG, "Reading from local socket failed: code=%d (%s)\n",
@@ -1018,7 +1032,7 @@ int do_server_loop()
         }
         else if (select_rv == 0)
         {
-            log_printf(L_DEBUG3, "Nothing to read...");
+            log_printf(L_DEBUG5, "Nothing to read...");
         }
         else
         {
@@ -1032,6 +1046,7 @@ int do_server_loop()
                 log_printf(L_DEBUG2, "Current tunnel: %p", tun);
                 if(FD_ISSET(tun->sockfd, &fds))
                 {
+                    tox_timer_do_sleep = true;
                     int nbytes = recv(tun->sockfd,
                             tox_packet_buf+PROTOCOL_BUFFER_OFFSET,
                             READ_BUFFER_SIZE, 0);
@@ -1059,8 +1074,6 @@ int do_server_loop()
                         frame->connid = tun->connid;
                         frame->data_length = 0;
                         send_frame(frame, data);
-                        sent_data = 1;
-
                         tunnel_queue_delete(tun);
 
                         continue;
@@ -1090,14 +1103,9 @@ int do_server_loop()
             }
         }
 
-        gettimeofday(&tv_end, NULL);
-        ms_start = 1000 * tv_start.tv_sec + tv_start.tv_usec/1000;
-        ms_end = 1000 * tv_end.tv_sec + tv_end.tv_usec/1000;
-
-        if(!sent_data && (ms_end - ms_start < tox_do_interval_ms))
+        if(tox_timer_do_sleep)
         {
-            /*log_printf(L_DEBUG, "Sleeping for %d ms extra to prevent high CPU usage\n", (tox_do_interval_ms - (ms_end - ms_start)));*/
-            usleep((tox_do_interval_ms - (ms_end - ms_start)) * 1000);
+            run_tox_timer(tox, t);
         }
     }
 }
@@ -1361,13 +1369,14 @@ int main(int argc, char *argv[])
                     min_log_level = L_DEBUG2;
                     break;
                 case 3:
-                    min_log_level = L_DEBUG2;
+                    min_log_level = L_DEBUG3;
                     log_tox_trace = 1;
                     break;
                 case 4:
+                    min_log_level = L_DEBUG4;
+                case 5:
                 default:
-                    min_log_level = L_DEBUG3;
-                    log_tox_trace = 1;
+                    min_log_level = L_DEBUG5;
                 }
                 break;
             case 'q':

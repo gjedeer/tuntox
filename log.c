@@ -41,6 +41,12 @@ char *log_printable_level(int level)
             return "DEBUG";
         case L_DEBUG2:
             return "DEBUG2";
+        case L_DEBUG3:
+            return "DEBUG3";
+        case L_DEBUG4:
+            return "DEBUG4";
+        case L_DEBUG5:
+            return "DEBUG5";
     }
     return "UNKNOWN";
 }
