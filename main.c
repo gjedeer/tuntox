@@ -1089,7 +1089,6 @@ int do_server_loop()
                         frame->connid = tun->connid;
                         frame->data_length = nbytes;
                         send_frame(frame, tox_packet_buf);
-                        sent_data = 1;
                     }
                 }
             }
