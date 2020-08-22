@@ -272,19 +272,16 @@ void client_close_all_connections()
 	}
 }
 
-void client_connected_loop_iteration(uint32_t friendnumber)
+void client_connected_loop_iteration(uint32_t friendnumber, struct tox_timer *t)
 {
     static unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     static fd_set fds;
-    static struct timeval tv;
 
     int accept_fd = 0;
     int select_rv = 0;
     tunnel *tmp = NULL;
     tunnel *tun = NULL;
 
-    tv.tv_sec = 0;
-    tv.tv_usec = 20000;
     fds = client_master_fdset;
 
     /* Handle accepting new connections */
@@ -303,7 +300,7 @@ void client_connected_loop_iteration(uint32_t friendnumber)
     }
 
     /* Handle reading from sockets */
-    select_rv = select(select_nfds, &fds, NULL, NULL, &tv);
+    select_rv = select(select_nfds, &fds, NULL, NULL, &(t->tv));
     if(select_rv == -1 || select_rv == 0)
     {
         if(select_rv == -1)
@@ -415,6 +412,7 @@ int do_client_loop(uint8_t *tox_id_str)
     {
         /* Let tox do its stuff */
         tox_iterate(tox, NULL);
+        struct tox_timer t = init_tox_timer(tox);
 
         switch(state)
         {
@@ -531,11 +529,11 @@ int do_client_loop(uint8_t *tox_id_str)
             case CLIENT_STATE_AWAIT_PONG:
                 break;
             case CLIENT_STATE_CONNECTED:
-                client_connected_loop_iteration(friendnumber);
+                client_connected_loop_iteration(friendnumber, &t);
                 break;
         }
 
-        usleep(tox_iteration_interval(tox) * 1000);
+        run_tox_timer(tox, t);
     }
 }
 
