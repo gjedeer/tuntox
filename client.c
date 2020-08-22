@@ -140,10 +140,16 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
         log_printf(L_WARNING, "Got ACK tunnel frame when not in client mode!?\n");
         return -1;
     }
+    if(state != CLIENT_STATE_AWAIT_TUNNEL)
+    {
+        log_printf(L_WARNING, "Got ACK tunnel frame in unexpected state (%d); ignoring", state);
+        return -1;
+    }
 
     tun = tunnel_create(client_tunnel.sockfd, rcvd_frame->connid, rcvd_frame->friendnumber);
     if (!tun)
     {
+        log_printf(L_ERROR, "Got server ACK but failed to create new tunnel");
         exit(1);
     }
 
@@ -152,14 +158,6 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
 
     update_select_nfds(tun->sockfd);
     FD_SET(tun->sockfd, &client_master_fdset);
-    if(program_mode == Mode_Client_Local_Port_Forward)
-    {
-        log_printf(L_INFO, "Accepted a new connection on port %d\n", local_port);
-    }
-    if(state != CLIENT_STATE_AWAIT_TUNNEL)
-    {
-        log_printf(L_WARNING, "Got ACK tunnel frame when state is %d", state);
-    }
     state = CLIENT_STATE_CONNECTED;
     return 0;
 }
