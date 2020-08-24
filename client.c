@@ -269,7 +269,6 @@ void client_connected_loop_iteration(uint32_t friendnumber, struct tox_timer *t)
     static unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     static fd_set fds;
 
-    int accept_fd = 0;
     int select_rv = 0;
     tunnel *tmp = NULL;
     tunnel *tun = NULL;
@@ -279,8 +278,8 @@ void client_connected_loop_iteration(uint32_t friendnumber, struct tox_timer *t)
     /* Handle accepting new connections */
     if(client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
     {
-        accept_fd = accept(bind_sockfd, NULL, NULL);
         log_printf(L_DEBUG4, "calling accept(%d)", bind_sockfd);
+        int accept_fd = accept(bind_sockfd, NULL, NULL);
         if(accept_fd != -1)
         {
             log_printf(L_INFO, "Accepting a new connection - requesting tunnel...\n");
