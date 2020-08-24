@@ -118,38 +118,30 @@ int local_bind()
     return 0;
 }
 
-bool tunnel_client_mode()
-{
-    switch (program_mode) {
-    case Mode_Client_Local_Port_Forward:
-    case Mode_Client_Pipe:
-        return true;
-    case Mode_Client_Ping:
-    default:
-        return false;
-    }
-}
-
 /* Bind the client.sockfd to a tunnel */
 int handle_acktunnel_frame(protocol_frame *rcvd_frame)
 {
     tunnel *tun;
 
-    if(!tunnel_client_mode())
-    {
-        log_printf(L_WARNING, "Got ACK tunnel frame when not in client mode!?\n");
+    switch (program_mode) {
+    case Mode_Client_Local_Port_Forward:
+    case Mode_Client_Pipe:
+        break;
+    default:
+        log_printf(L_WARNING, "Got ACKTUNNEL frame in unexpected mode (%d); ignoring", program_mode);
         return -1;
     }
+
     if(state != CLIENT_STATE_AWAIT_TUNNEL)
     {
-        log_printf(L_WARNING, "Got ACK tunnel frame in unexpected state (%d); ignoring", state);
+        log_printf(L_WARNING, "Got ACKTUNNEL frame in unexpected state (%d); ignoring", state);
         return -1;
     }
 
     tun = tunnel_create(client_tunnel.sockfd, rcvd_frame->connid, rcvd_frame->friendnumber);
     if (!tun)
     {
-        log_printf(L_ERROR, "Got server ACK but failed to create new tunnel");
+        log_printf(L_ERROR, "Got ACKTUNNEL frame but tunnel_create() failed to create new tunnel object");
         exit(1);
     }
 
