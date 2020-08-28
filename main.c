@@ -3,7 +3,6 @@
 #include "tox_bootstrap.h"
 #include "log.h"
 
-#define LOG_IP_ADDRESS
 
 #ifdef __MACH__
     #include "mach.h"
@@ -19,7 +18,7 @@ TOX_CONNECTION friend_connection_status = TOX_CONNECTION_NONE;
 
 
 /* Don't bootstrap nodes */
-int skip_bootstrap = 1;
+int skip_bootstrap = 0;
 
 enum Mode program_mode = Mode_Unspecified;
 
