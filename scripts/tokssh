@@ -71,12 +71,12 @@ then
     # last argument is user@toxid
     user="${arruserhost[0]}@"
     toxid=${arruserhost[1]}
-    hostname=localhost
+    hostname=$toxid
 else
     # last argument is just toxid
     user=""
     toxid=$userhost
-    hostname=localhost
+    hostname=$toxid
 fi
 
 #search toxid in ~/.tuntox/hosts and map it to toxid
