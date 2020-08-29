@@ -47,6 +47,7 @@ clean:
 install: tuntox_nostatic
 	$(INSTALL_MKDIR) -d $(DESTDIR)$(bindir)
 	cp tuntox_nostatic $(DESTDIR)$(bindir)/tuntox
+	install scripts/tokssh $(DESTDIR)$(bindir)/
 
 debs = ../tuntox_0.0.9-1_amd64.deb ../tuntox-dbgsym_0.0.9-1_amd64.deb
 .PHONY: install-debs debs
