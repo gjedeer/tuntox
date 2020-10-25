@@ -911,6 +911,15 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *m
     log_printf(L_INFO, "Accepted friend request from %s as %d\n", tox_printable_id, friendnumber);
 }
 
+
+void handle_friend_connection_status(Tox *m, uint32_t num, TOX_CONNECTION connection_status, void *user_data)
+{
+    const char *status = NULL;
+    status = readable_connection_status(connection_status);
+    log_printf(L_INFO, "Friend connection status changed: %s", status);
+}
+
+
 /* Callback for tox_callback_self_connection_status() */
 void handle_connection_status_change(Tox *tox, TOX_CONNECTION p_connection_status, void *user_data)
 {
@@ -1474,8 +1483,8 @@ int main(int argc, char *argv[])
 	tox_options.udp_enabled = 1;
 	tox_options.local_discovery_enabled = 1;
 	tox_options.tcp_port = tcp_relay_port;
-	tox_options.start_port = udp_start_port;
-	tox_options.end_port = udp_end_port;
+	// tox_options.start_port = udp_start_port;
+	// tox_options.end_port = udp_end_port;
 	tox_options.hole_punching_enabled = 1;
 
 	log_printf(L_INFO, "Using %d for TCP relay port and %d-%d for UDP", 
@@ -1521,6 +1530,7 @@ int main(int argc, char *argv[])
 
     set_tox_username(tox);
     tox_callback_self_connection_status(tox, handle_connection_status_change);
+    tox_callback_friend_connection_status(tox, handle_friend_connection_status);
 
     do_bootstrap(tox);
 
