@@ -79,6 +79,21 @@ typedef struct protocol_frame_t {
 	uint8_t *data;
 } protocol_frame;
 
+/* A list of local port forwards (listen locally, forward to server */
+typedef struct local_port_forward_t {
+	int local_port;
+	char *remote_host;
+	int remote_port;
+
+	/* Sock representing the local port - call accept() on it */
+	int bind_sockfd;
+
+	/* Client mode tunnel object for this port forward */
+	tunnel *tun;
+
+	struct local_port_forward_t *next;
+} local_port_forward;
+
 /* Rules policy */
 enum rules_policy_enum { VALIDATE, NONE };
 typedef struct rule {

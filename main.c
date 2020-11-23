@@ -45,9 +45,7 @@ enum rules_policy_enum rules_policy = NONE;
 rule *rules = NULL;
 
 /* Ports and hostname for port forwarding */
-int remote_port = 0;
-char *remote_host = NULL;
-int local_port = 0;
+local_port_forward *local_port_forwards = NULL;
 
 /* Whether to daemonize/fork after startup */
 int daemonize = 0;
@@ -1275,14 +1273,26 @@ int main(int argc, char *argv[])
         switch(oc)
         {
             case 'L':
+                local_port_forward *port_forward = calloc(sizeof(local_port_forward), 1);
+
+                if(!port_forward) {
+                    log_printf(L_ERROR, "Could not allocate memory for port forward\n");
+                    exit(1);
+                }
+
                 /* Local port forwarding */
                 client_mode = 1;
                 client_local_port_mode = 1;
-                if(parse_local_port_forward(optarg, &local_port, &remote_host, &remote_port) < 0)
+
+
+                if(parse_local_port_forward(optarg, &(port_forward->local_port), &(port_forward->remote_host), &(port_forward->remote_port)) < 0)
                 {
                     log_printf(L_ERROR, "Invalid value for -L option - use something like -L 22:127.0.0.1:22\n");
                     exit(1);
                 }
+
+                LL_APPEND(local_port_forwards, port_forward);
+
                 if(min_log_level == L_UNSET)
                 {
                     min_log_level = L_INFO;

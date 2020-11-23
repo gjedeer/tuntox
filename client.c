@@ -15,12 +15,6 @@ int state = CLIENT_STATE_INITIAL;
 /* Used in ping mode */
 struct timespec ping_sent_time;
 
-/* Client mode tunnel */
-tunnel client_tunnel;
-
-/* Sock representing the local port - call accept() on it */
-int bind_sockfd;
-
 fd_set client_master_fdset;
 
 int handle_pong_frame()
@@ -42,7 +36,7 @@ int handle_pong_frame()
     return 0;
 }
 
-int local_bind()
+int local_bind_one(local_port_forward *port_forward)
 {
     struct addrinfo hints, *res;
     char port[6];
@@ -51,7 +45,7 @@ int local_bind()
     int gai_status;
     int setsockopt_status;
 
-    snprintf(port, 6, "%d", local_port);
+    snprintf(port, 6, "%d", port_forward->local_port);
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;  // use IPv4 or IPv6, whichever
@@ -65,15 +59,15 @@ int local_bind()
         exit(1);
     }
 
-    bind_sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if(bind_sockfd < 0)
+    port_forward->bind_sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if(port_forward->bind_sockfd < 0)
     {
         log_printf(L_ERROR, "Could not create a socket for local listening: %s\n", strerror(errno));
         freeaddrinfo(res);
         exit(1);
     }
 
-    setsockopt_status = setsockopt(bind_sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+    setsockopt_status = setsockopt(port_forward->bind_sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
     if(setsockopt_status < 0)
     {
         log_printf(L_ERROR, "Could not set socket options: %s\n", 
@@ -83,37 +77,46 @@ int local_bind()
     }
 
     /* Set O_NONBLOCK to make accept() non-blocking */
-    if (-1 == (flags = fcntl(bind_sockfd, F_GETFL, 0)))
+    if (-1 == (flags = fcntl(port_forward->bind_sockfd, F_GETFL, 0)))
     {
         flags = 0;
     }
-    if(fcntl(bind_sockfd, F_SETFL, flags | O_NONBLOCK) < 0)
+    if(fcntl(port_forward->bind_sockfd, F_SETFL, flags | O_NONBLOCK) < 0)
     {
         log_printf(L_ERROR, "Could not make the socket non-blocking: %s\n", strerror(errno));
         freeaddrinfo(res);
         exit(1);
     }
 
-    if(bind(bind_sockfd, res->ai_addr, res->ai_addrlen) < 0)
+    if(bind(port_forward->bind_sockfd, res->ai_addr, res->ai_addrlen) < 0)
     {
-        log_printf(L_ERROR, "Bind to port %d failed: %s\n", local_port, strerror(errno));
+        log_printf(L_ERROR, "Bind to port %d failed: %s\n", port_forward->local_port, strerror(errno));
         freeaddrinfo(res);
-        close(bind_sockfd);
+        close(port_forward->bind_sockfd);
         exit(1);
     }
 
     freeaddrinfo(res);
 
-    if(listen(bind_sockfd, 1) < 0)
+    if(listen(port_forward->bind_sockfd, 1) < 0)
     {
-        log_printf(L_ERROR, "Listening on port %d failed: %s\n", local_port, strerror(errno));
-        close(bind_sockfd);
+        log_printf(L_ERROR, "Listening on port %d failed: %s\n", port_forward->local_port, strerror(errno));
+        close(port_forward->bind_sockfd);
         exit(1);
     }
 
-    log_printf(L_DEBUG, "Bound to local port %d\n", local_port);
+    log_printf(L_DEBUG, "Bound to local port %d\n", port_forward->local_port);
 
     return 0;
+}
+
+int local_bind() {
+    local_port_forward *port_forward;
+
+    LL_FOREACH(local_port_forwards, port_forward)
+    {
+        local_bind_one(port_forward);
+    }
 }
 
 /* Bind the client.sockfd to a tunnel */
@@ -288,6 +291,7 @@ int do_client_loop(uint8_t *tox_id_str)
     uint32_t invitations_sent = 0;
     TOX_ERR_FRIEND_QUERY friend_query_error;
     TOX_ERR_FRIEND_CUSTOM_PACKET custom_packet_error;
+    local_port_forward *port_forward;
 
     client_tunnel.sockfd = 0;
     FD_ZERO(&client_master_fdset);
@@ -457,30 +461,40 @@ int do_client_loop(uint8_t *tox_id_str)
                 break;
 
             case CLIENT_STATE_BIND_PORT:
-                if(bind_sockfd < 0)
+                LL_FOREACH(local_port_forwards, port_forward)
                 {
-                    log_printf(L_ERROR, "Shutting down - could not bind to listening port\n");
-                    state = CLIENT_STATE_SHUTDOWN;
-                }
-                else
-                {
-                    state = CLIENT_STATE_FORWARDING;
+                    if(port_forward->bind_sockfd < 0)
+                    {
+                        log_printf(L_ERROR, "Shutting down - could not bind to listening port %d\n", port_forward->local_port);
+                        state = CLIENT_STATE_SHUTDOWN;
+                        break;
+                    }
+                    else
+                    {
+                        state = CLIENT_STATE_FORWARDING;
+                    }
                 }
                 break;
             case CLIENT_STATE_SETUP_PIPE:
-                send_tunnel_request_packet(
-                        remote_host,
-                        remote_port,
-                        friendnumber
-                );
+                LL_FOREACH(local_port_forwards, port_forward)
+                {
+                    send_tunnel_request_packet(
+                            port_forward->remote_host,
+                            port_forward->remote_port,
+                            friendnumber
+                    );
+                }
                 state = CLIENT_STATE_FORWARDING;
                 break;
             case CLIENT_STATE_REQUEST_TUNNEL:
-                send_tunnel_request_packet(
-                        remote_host,
-                        remote_port,
-                        friendnumber
-                );
+                LL_FOREACH(local_port_forwards, port_forward)
+                {
+                    send_tunnel_request_packet(
+                            port_forward->remote_host,
+                            port_forward->remote_port,
+                            friendnumber
+                    );
+                }
                 state = CLIENT_STATE_WAIT_FOR_ACKTUNNEL;
                 break;
             case CLIENT_STATE_WAIT_FOR_ACKTUNNEL:
