@@ -15,6 +15,7 @@ INSTALL_MKDIR = $(INSTALL) -d -m 755
 
 prefix ?= /usr
 bindir ?= $(prefix)/bin
+etcdir ?= /etc
 
 # Targets
 all: tuntox tuntox_nostatic
@@ -45,15 +46,22 @@ clean:
 	rm -f *.o tuntox cscope.out gitversion.h tox_bootstrap.h
 
 install: tuntox_nostatic
-	$(INSTALL_MKDIR) -d $(DESTDIR)$(bindir)
-	cp tuntox_nostatic $(DESTDIR)$(bindir)/tuntox
-	install scripts/tokssh $(DESTDIR)$(bindir)/
+	install -d -m755 $(DESTDIR)$(bindir) $(DESTDIR)$(etcdir)
+	install -d -m700 $(DESTDIR)$(etcdir)/tuntox
+	install -D -T tuntox_nostatic $(DESTDIR)$(bindir)/tuntox
+	install -D scripts/tokssh -t $(DESTDIR)$(bindir)/
+	install -m0644 -D -t $(DESTDIR)$(etcdir)/systemd/system scripts/tuntox.service
+ifeq ($(SKIP_SYSTEMCTL),)
+	systemctl daemon-reload
+	systemctl restart tuntox
+	systemctl status tuntox
+endif
 
 debs = ../tuntox_0.0.9-1_amd64.deb ../tuntox-dbgsym_0.0.9-1_amd64.deb
 .PHONY: install-debs debs
 install-debs: $(debs)
 	$(shell [ "$$(id -u)" = 0 ] || echo sudo) dpkg -i $(debs)
 $(debs) debs:
-	fakeroot ./debian/rules binary
+	fakeroot -- sh -c 'SKIP_SYSTEMCTL=y ./debian/rules binary'
 
 .PHONY: all clean tuntox
