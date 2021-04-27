@@ -1,7 +1,7 @@
 version: "2"
 services:
-  airsonic:
-    image: registry.gitlab.com/gjedeer/tuntox
+  tuntox:
+    image: gdr1/tuntox
     container_name: tuntox
     environment:
       - TUNTOX_SHARED_SECRET=myassfeelsweird
