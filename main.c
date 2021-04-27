@@ -383,19 +383,24 @@ int send_frame(protocol_frame *frame, uint8_t *data)
     return rv;
 }
 
-int send_tunnel_ack_frame(tunnel *tun)
+int send_tunnel_ack_frame(tunnel *tun, char *remote_hostname, int remote_port)
 {
     protocol_frame frame_st;
     protocol_frame *frame;
-    uint8_t data[PROTOCOL_BUFFER_OFFSET];
+    uint8_t *data = NULL;
 
     frame = &frame_st;
     memset(frame, 0, sizeof(protocol_frame));
 
     frame->packet_type = PACKET_TYPE_ACKTUNNEL;
     frame->connid = tun->connid;
-    frame->data_length = 0;
+    frame->data_length = strlen(remote_hostname) + 3;
     frame->friendnumber = tun->friendnumber;
+
+    data = calloc(PROTOCOL_BUFFER_OFFSET + frame->data_length, 1);
+    data[PROTOCOL_BUFFER_OFFSET + 0] = BYTE1(remote_port);
+    data[PROTOCOL_BUFFER_OFFSET + 1] = BYTE2(remote_port);
+    strncpy(data + PROTOCOL_BUFFER_OFFSET + 2, remote_hostname, frame->data_length-2);
 
     return send_frame(frame, data);
 }
@@ -485,7 +490,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
             FD_SET(sockfd, &master_server_fds);
             update_select_nfds(sockfd);
             log_printf(L_DEBUG, "Created tunnel, yay!\n");
-            send_tunnel_ack_frame(tun);
+            send_tunnel_ack_frame(tun, hostname, port);
         }
         else
         {

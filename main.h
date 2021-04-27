@@ -48,14 +48,14 @@
 
 
 typedef struct tunnel_t {
-	/* The forwarded socket fd */
-	int sockfd;
-	/* Connection ID, must be int because of uthash */
-	int connid;
-	/* Friend number of remote end */
-	uint32_t friendnumber;
+    /* The forwarded socket fd */
+    int sockfd;
+    /* Connection ID, must be int because of uthash */
+    int connid;
+    /* Friend number of remote end */
+    uint32_t friendnumber;
 
-	UT_hash_handle hh;
+    UT_hash_handle hh;
 } tunnel;
 
 typedef struct tunnel_list_t {
@@ -64,34 +64,34 @@ typedef struct tunnel_list_t {
 } tunnel_list;
 
 typedef struct allowed_toxid {
-	uint8_t toxid[TOX_ADDRESS_SIZE];
-	struct allowed_toxid *next;
+    uint8_t toxid[TOX_ADDRESS_SIZE];
+    struct allowed_toxid *next;
 } allowed_toxid;
 
 typedef struct protocol_frame_t {
-	uint32_t friendnumber;
+    uint32_t friendnumber;
 
-	/* Fields actually found in the protocol */
-	uint16_t magic;
-	uint16_t packet_type;
-	uint16_t connid;
-	uint16_t data_length;
-	uint8_t *data;
+    /* Fields actually found in the protocol */
+    uint16_t magic;
+    uint16_t packet_type;
+    uint16_t connid;
+    uint16_t data_length;
+    uint8_t *data;
 } protocol_frame;
 
 /* A list of local port forwards (listen locally, forward to server */
 typedef struct local_port_forward_t {
-	int local_port;
-	char *remote_host;
-	int remote_port;
+    int local_port;
+    char *remote_host;
+    int remote_port;
 
-	/* Sock representing the local port - call accept() on it */
-	int bind_sockfd;
+    /* Sock representing the local port - call accept() on it */
+    int bind_sockfd;
 
-	/* Client mode tunnel object for this port forward */
-	tunnel *tun;
+    /* Client mode tunnel object for this port forward */
+    tunnel *tun;
 
-	struct local_port_forward_t *next;
+    struct local_port_forward_t *next;
 } local_port_forward;
 
 /* Rules policy */
