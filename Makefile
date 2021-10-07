@@ -54,6 +54,10 @@ cscope.out:
 clean:
 	rm -f $(OBJECTS) $(EXECUTABLES) cscope.out gitversion.h
 
+ifneq ($(shell id -u),0)
+install:
+	sudo MAKEFLAGS=$(MAKEFLAGS) -- $(MAKE) install
+else
 install: tuntox_nostatic
 	install -d -m755 $(DESTDIR)$(bindir) $(DESTDIR)$(etcdir)
 	install -d -m700 $(DESTDIR)$(etcdir)/tuntox
@@ -64,6 +68,7 @@ ifeq ($(SKIP_SYSTEMCTL),)
 	systemctl daemon-reload
 	systemctl restart tuntox
 	systemctl status tuntox
+endif
 endif
 
 .PHONY: install-debs debs
