@@ -155,10 +155,10 @@ void on_tox_log(Tox *tox, TOX_LOG_LEVEL level, const char *path, uint32_t line, 
     uint32_t index = user_data ? *(uint32_t *)user_data : 0;
     const char *file = strrchr(path, '/');
 
-	if(level == TOX_LOG_LEVEL_TRACE && !log_tox_trace)
-	{
-		return;
-	}
+    if(level == TOX_LOG_LEVEL_TRACE && !log_tox_trace)
+    {
+        return;
+    }
 
     file = file ? file + 1 : path;
     log_printf(L_DEBUG2, "[#%d] %s %s:%d\t%s:\t%s\n", index, tox_log_level_name(level), file, line, func, message);
