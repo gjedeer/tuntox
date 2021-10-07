@@ -33,7 +33,7 @@ long int udp_start_port = 0;
 long int udp_end_port = 0;
 
 /* Directory with config and tox save */
-char *config_path = "/etc/tuntox/";
+char *config_path = "/etc/tuntox";
 
 /* Limit hostname and port in server */
 int tunnel_target_whitelist_size = 0;
@@ -705,38 +705,42 @@ int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_nu
 
 /* End proto */
 
+void path_append(char *target, char *prefix, char *suffix)
+{
+    size_t prefix_len = strlen(prefix);
+    size_t suffix_len = strlen(suffix);
+    if (prefix_len + suffix_len + 1 > PATH_MAX) return;
+    memcpy(target, prefix, prefix_len);
+    memcpy(target + prefix_len, suffix, suffix_len);
+    *(target + prefix_len + suffix_len) = 0;
+}
+
 /* Save tox identity to a file */
 static void write_save(Tox *tox)
 {
     void *data;
     uint32_t size;
-    uint8_t path_tmp[512], path_real[512], *p;
+    char path_tmp[PATH_MAX], path_real[PATH_MAX];
     FILE *file;
 
     size = tox_get_savedata_size(tox);
     data = malloc(size);
     tox_get_savedata(tox, data);
 
-    strncpy((char *)path_real, config_path, sizeof(path_real));
+    path_append(path_real, config_path, "/tox_save");
+    path_append(path_tmp, path_real, ".tmp");
 
-    p = path_real + strlen((char *)path_real);
-    memcpy(p, "tox_save", sizeof("tox_save"));
-
-    unsigned int path_len = (p - path_real) + sizeof("tox_save");
-    memcpy(path_tmp, path_real, path_len);
-    memcpy(path_tmp + (path_len - 1), ".tmp", sizeof(".tmp"));
-
-    file = fopen((char*)path_tmp, "wb");
-    if(file) {
+    file = fopen(path_tmp, "wb");
+    if (file) {
         fwrite(data, size, 1, file);
         fflush(file);
         fclose(file);
-        if (rename((char*)path_tmp, (char*)path_real) != 0) {
+        if (rename(path_tmp, path_real) != 0) {
             log_printf(L_WARNING, "Failed to rename file. %s to %s deleting and trying again\n", path_tmp, path_real);
-            if(remove((const char *)path_real) < 0) {
+            if (remove(path_real) < 0) {
                 log_printf(L_WARNING, "Failed to remove old save file %s\n", path_real);
             }
-            if (rename((char*)path_tmp, (char*)path_real) != 0) {
+            if (rename(path_tmp, path_real) != 0) {
                 log_printf(L_WARNING, "Saving Failed\n");
             } else {
                 log_printf(L_DEBUG, "Saved data\n");
@@ -758,15 +762,10 @@ static size_t load_save(uint8_t **out_data)
 {
     void *data;
     uint32_t size;
-    uint8_t path_real[PATH_MAX], *p;
+    char f[PATH_MAX];
 
-    strncpy((char *)path_real, config_path, sizeof(path_real));
-
-    p = path_real + strlen((char *)path_real);
-    char basename[] = "/tox_save";
-    memcpy(p, "/tox_save", sizeof(basename));
-
-    data = file_raw((char *)path_real, &size);
+    path_append(f, config_path, "/tox_save");
+    data = file_raw(f, &size);
 
     if(data)
     {
