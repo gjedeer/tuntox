@@ -1,5 +1,9 @@
 SOURCES = client.c gitversion.c log.c mach.c main.c util.c
 OBJECTS = $(SOURCES:.c=.o)
+EXECUTABLES = tuntox tuntox_nostatic
+DEB_VERSION = 0.0.9-1
+DEB_ARCH = amd64
+DEBS = ../tuntox_$(DEB_VERSION)_$(DEB_ARCH).deb ../tuntox-dbgsym_$(DEB_VERSION)_$(DEB_ARCH).deb
 INCLUDES = client.h gitversion.h log.h mach.h main.h tox_bootstrap.h utarray.h uthash.h util.h utlist.h utstring.h
 DEPS = toxcore
 CC = gcc
@@ -18,18 +22,17 @@ bindir ?= $(prefix)/bin
 etcdir ?= /etc
 
 # Targets
-all: tuntox tuntox_nostatic
+.PHONY: all clean
+all: $(EXECUTABLES)
 
 gitversion != printf %s $$(git rev-parse HEAD) && (git diff --quiet || printf %s -dirty)
-gitversion_on_disk != read _ _ v < gitversion.h; echo $$v
+gitversion_on_disk != 2>/dev/null read _ _ v < gitversion.h && echo $$v || true
 ifneq ("$(gitversion)", $(gitversion_on_disk))
 .PHONY: gitversion.h
 endif
 
 gitversion.h:
 	echo '#define GITVERSION "$(gitversion)"' > $@
-
-FORCE:
 
 tox_bootstrap.h:
 	$(PYTHON) generate_tox_bootstrap.py
@@ -49,7 +52,7 @@ cscope.out:
 	@cscope -bv ./*.[ch] &> /dev/null
 
 clean:
-	rm -f *.o tuntox cscope.out gitversion.h tox_bootstrap.h
+	rm -f $(OBJECTS) $(EXECUTABLES) cscope.out gitversion.h tox_bootstrap.h
 
 install: tuntox_nostatic
 	install -d -m755 $(DESTDIR)$(bindir) $(DESTDIR)$(etcdir)
@@ -63,11 +66,8 @@ ifeq ($(SKIP_SYSTEMCTL),)
 	systemctl status tuntox
 endif
 
-debs = ../tuntox_0.0.9-1_amd64.deb ../tuntox-dbgsym_0.0.9-1_amd64.deb
 .PHONY: install-debs debs
-install-debs: $(debs)
-	$(shell [ "$$(id -u)" = 0 ] || echo sudo) dpkg -i $(debs)
-$(debs) debs:
+install-debs: $(DEBS)
+	$(shell [ "$$(id -u)" = 0 ] || echo sudo) dpkg -i $(DEBS)
+$(DEBS) debs:
 	fakeroot -- sh -c 'SKIP_SYSTEMCTL=y ./debian/rules binary'
-
-.PHONY: all clean tuntox
