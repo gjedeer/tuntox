@@ -616,6 +616,8 @@ int handle_frame(protocol_frame *frame)
  */
 void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp)
 {
+    tox = tox;
+    tmp = tmp;
     protocol_frame *frame = NULL;
 
     if(len < PROTOCOL_BUFFER_OFFSET)
@@ -865,6 +867,7 @@ void tunnel_target_whitelist_clear()
 
 void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *message, size_t length, void *userdata)
 {
+    userdata = userdata;
     unsigned char tox_printable_id[TOX_ADDRESS_SIZE * 2 + 1];
     uint32_t friendnumber;
     TOX_ERR_FRIEND_ADD friend_add_error;
@@ -921,6 +924,9 @@ void accept_friend_request(Tox *tox, const uint8_t *public_key, const uint8_t *m
 /* Callback for tox_callback_self_connection_status() */
 void handle_connection_status_change(Tox *tox, TOX_CONNECTION new_connection_status, void *user_data)
 {
+    tox = tox;
+    user_data = user_data;
+
     connection_status = new_connection_status;
     if (connection_status)
     {
@@ -947,6 +953,8 @@ void log_friend_ip_address(Tox *tox, uint32_t friendnumber)
 
 void handle_friend_connection_status(Tox *tox, uint32_t friend_number, TOX_CONNECTION connection_status, void *user_data)
 {
+    tox = tox;
+    user_data = user_data;
     const char *status = NULL;
     status = readable_connection_status(connection_status);
     log_printf(L_INFO, "Friend #%d connection status changed: %s", friend_number, status);
@@ -987,6 +995,7 @@ struct tox_timer init_tox_timer(Tox *tox)
 
 void run_tox_timer(Tox *tox, struct tox_timer t)
 {
+    tox = tox;
     struct timeval tv_end;
     gettimeofday(&tv_end, NULL);
     unsigned long long ms_elapsed = tv_end.tv_sec + tv_end.tv_usec/1000 - t.tv_start.tv_sec - t.tv_start.tv_usec/1000;

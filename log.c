@@ -151,6 +151,7 @@ static const char *tox_log_level_name(TOX_LOG_LEVEL level)
 void on_tox_log(Tox *tox, TOX_LOG_LEVEL level, const char *path, uint32_t line, const char *func,
 		const char *message, void *user_data)
 {
+    tox = tox;
     uint32_t index = user_data ? *(uint32_t *)user_data : 0;
     const char *file = strrchr(path, '/');
 
