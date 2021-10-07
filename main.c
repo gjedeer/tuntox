@@ -1381,6 +1381,7 @@ int main(int argc, char *argv[])
                     break;
                 case 4:
                     min_log_level = L_DEBUG4;
+                    break;
                 case 5:
                 default:
                     min_log_level = L_DEBUG5;
