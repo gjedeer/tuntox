@@ -17,9 +17,9 @@ PYTHON = /usr/bin/env python3
 INSTALL = install -C
 INSTALL_MKDIR = $(INSTALL) -d -m 755
 
-prefix ?= /usr
-bindir ?= $(prefix)/bin
-etcdir ?= /etc
+prefix = /usr
+bindir = $(prefix)/bin
+etcdir = /etc
 
 # Targets
 .PHONY: all clean
@@ -52,7 +52,7 @@ cscope.out:
 	@cscope -bv ./*.[ch] &> /dev/null
 
 clean:
-	rm -f $(OBJECTS) $(EXECUTABLES) cscope.out gitversion.h tox_bootstrap.h
+	rm -f $(OBJECTS) $(EXECUTABLES) cscope.out gitversion.h
 
 install: tuntox_nostatic
 	install -d -m755 $(DESTDIR)$(bindir) $(DESTDIR)$(etcdir)
