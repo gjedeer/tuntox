@@ -98,4 +98,10 @@ else
     persist=
 fi
 
-ssh -o ProxyCommand="tuntox $persist -i $toxid -W 127.0.0.1:%p $secret" $args ${user}${hostname}
+ssh \
+    -o ProxyCommand="tuntox $persist -i $toxid -W localhost:%p $secret" \
+    -o StrictHostKeyChecking=accept-new \
+    -o CanonicalizeHostname=no \
+    -o UpdateHostKeys=yes \
+    $args \
+    ${user}${hostname}
