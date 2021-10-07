@@ -1,4 +1,6 @@
-SOURCES = $(wildcard *.c)
+SOURCES = client.c gitversion.c log.c mach.c main.c util.c
+OBJECTS=$(SOURCES:.c=.o)
+INCLUDES = client.h gitversion.h log.h mach.h main.h tox_bootstrap.h utarray.h uthash.h util.h utlist.h utstring.h
 DEPS=toxcore
 CC=gcc
 CFLAGS=-g -Wall #-std=c99
@@ -7,8 +9,6 @@ LDFLAGS=-g -pthread -lm -static -lrt
 LDFLAGS += $(shell pkg-config --static --libs $(DEPS))
 DSO_LDFLAGS=-g -pthread -lm -lrt
 DSO_LDFLAGS += $(shell pkg-config --libs $(DEPS))
-OBJECTS=$(SOURCES:.c=.o)
-INCLUDES = $(wildcard *.h)
 PYTHON = /usr/bin/env python3
 INSTALL = install -C
 INSTALL_MKDIR = $(INSTALL) -d -m 755
