@@ -7,7 +7,7 @@ DEBS = ../tuntox_$(DEB_VERSION)_$(DEB_ARCH).deb ../tuntox-dbgsym_$(DEB_VERSION)_
 INCLUDES = client.h gitversion.h log.h mach.h main.h tox_bootstrap.h utarray.h uthash.h util.h utlist.h utstring.h
 DEPS = toxcore
 CC = gcc
-CFLAGS = -g -Wall #-std=c99
+CFLAGS = -g -W -Wall -O2 -fcompare-debug-second
 CFLAGS += $(shell pkg-config --cflags $(DEPS))
 LDFLAGS = -g -pthread -lm -static -lrt
 LDFLAGS += $(shell pkg-config --static --libs $(DEPS))
