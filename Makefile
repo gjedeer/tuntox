@@ -32,7 +32,8 @@ ifneq ("$(gitversion)", $(gitversion_on_disk))
 endif
 
 gitversion.h:
-	echo '#define GITVERSION "$(gitversion)"' > $@
+	@echo "  GEN   $@"
+	@echo '#define GITVERSION "$(gitversion)"' > $@
 
 tox_bootstrap.h:
 	$(PYTHON) generate_tox_bootstrap.py
