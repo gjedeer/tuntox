@@ -20,8 +20,14 @@ etcdir ?= /etc
 # Targets
 all: tuntox tuntox_nostatic
 
-gitversion.h: FORCE
-	@if [ -f .git/HEAD ] ; then echo "  GEN   $@"; echo "#define GITVERSION \"$(shell echo -n $$(git rev-parse HEAD) && (git diff --quiet || printf %s -dirty)  )\"" > $@; fi
+gitversion != printf %s $$(git rev-parse HEAD) && (git diff --quiet || printf %s -dirty)
+gitversion_on_disk != read _ _ v < gitversion.h; echo $$v
+ifneq ("$(gitversion)", $(gitversion_on_disk))
+.PHONY: gitversion.h
+endif
+
+gitversion.h:
+	echo '#define GITVERSION "$(gitversion)"' > $@
 
 FORCE:
 
