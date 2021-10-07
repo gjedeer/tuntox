@@ -25,18 +25,18 @@ gitversion.h: FORCE
 
 FORCE:
 
-tox_bootstrap.h: 
-	$(PYTHON) generate_tox_bootstrap.py 
+tox_bootstrap.h:
+	$(PYTHON) generate_tox_bootstrap.py
 
 %.o: %.c $(INCLUDES) gitversion.h tox_bootstrap.h
 	@echo "  CC    $@"
 	@$(CC) -c $(CFLAGS) $< -o $@
 
 tuntox: $(OBJECTS) $(INCLUDES)
-	$(CC) -o $@ $(OBJECTS) -lpthread $(LDFLAGS) 
+	$(CC) -o $@ $(OBJECTS) -lpthread $(LDFLAGS)
 
 tuntox_nostatic: $(OBJECTS) $(INCLUDES)
-	$(CC) -o $@ $(OBJECTS) -lpthread $(DSO_LDFLAGS) 
+	$(CC) -o $@ $(OBJECTS) -lpthread $(DSO_LDFLAGS)
 
 cscope.out:
 	@echo "  GEN   $@"
