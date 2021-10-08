@@ -1,5 +1,6 @@
 SOURCES = client.c gitversion.c log.c mach.c main.c util.c
 OBJECTS = $(SOURCES:.c=.o)
+SCRIPTS = scripts/tokssh scripts/toxish
 EXECUTABLES = tuntox tuntox_nostatic
 DEB_VERSION = 0.0.9-1
 DEB_ARCH = amd64
@@ -63,7 +64,7 @@ install: tuntox_nostatic
 	install -d -m755 $(DESTDIR)$(bindir) $(DESTDIR)$(etcdir)
 	install -d -m700 $(DESTDIR)$(etcdir)/tuntox
 	install -D -T tuntox_nostatic $(DESTDIR)$(bindir)/tuntox
-	install -D scripts/tokssh -t $(DESTDIR)$(bindir)/
+	install -D -t $(DESTDIR)$(bindir) $(SCRIPTS)
 	install -m0644 -D -t $(DESTDIR)$(etcdir)/systemd/system scripts/tuntox.service
 ifeq ($(SKIP_SYSTEMCTL),)
 	systemctl daemon-reload

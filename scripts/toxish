@@ -1,0 +1,132 @@
+#!/bin/bash
+set -e
+function help
+{
+    PROGNAME=${0##*/}
+    cat <<EOF
+$PROGNAME: Save TunTox numbers in OpenSSH contact list.
+
+Usage: $PROGNAME  add       <name>  <TunTox Number>
+Usage: $PROGNAME  connect   <name>  <TunTox Number>
+
+
+For example, first do this:
+
+       $PROGNAME  add       billy   4BC18209278C9B2AA1BF9B9B27E671FC47D3DE3B15D175A63CC2C6E01B532A4CAE3D4BE083C8
+
+Then you can connect to billy's SSH server through Tox with this command:
+
+       ssh billy
+
+
+
+It will use Tox for connectivity but provide all the features of ssh (such as
+git, rsync, tunneling with -w, etc).
+
+
+
+It is also possible to use this command:
+
+       $PROGNAME  connect   <name>  <TunTox Number>
+       $PROGNAME  connect   billy   4BC18209278C9B2AA1BF9B9B27E671FC47D3DE3B15D175A63CC2C6E01B532A4CAE3D4BE083C8
+
+...which will first add the entry, if necessary, and then connect by running the
+command 'ssh billy'.
+
+
+EOF
+}
+
+function main
+{
+    if [ $# = 0 ]
+    then
+        help
+        exit
+    fi
+    case "$1" in
+        add)
+            shift
+            tokssh_add "$@"
+            ;;
+        connect)
+            shift
+            exists_ok
+            tokssh_add "$@"
+            exec ssh "$name"
+            ;;
+        *)
+            help
+            exit 1
+            ;;
+    esac
+    exit
+}
+
+
+function ssh_config_fragment
+{
+    cat <<EOF
+Host $name
+# Cryptographic trust comes from Hostname, which is a Tox key hash.
+#
+# We know we're talking to someone who has this key hash because Tox crypto
+# verifies.
+#
+# Thus we can safely disable StrictHostKeyChecking, and we can use this as a
+# secure channel to obtain and save SSH public keys for the remote server.
+
+StrictHostKeyChecking=no
+Hostname=$toxid
+ProxyCommand=tuntox -C ~/.tuntox/persist -i %h -W localhost:%p
+EOF
+}
+
+function tokssh_add
+{
+    if [ $# != 2 ]
+    then
+        help
+        exit 1
+    fi
+    if [ ${#2} = 76 ]
+    then
+        name=$1
+        toxid=$2
+    elif [ ${#1} = 76 ]
+    then
+        name=$2
+        toxid=$1
+    else
+        echo "$0: Error: Invalid ToxID: $2" >&2
+        exit 1
+    fi
+    mkdir -p ~/.ssh/config.d
+    mkdir -p ~/.tuntox/persist
+    grep -q '^Include config\.d/\*' ~/.ssh/config || sed -i -e '1i Include config.d/*' ~/.ssh/config
+    if grep -q "^Host $name" ~/.ssh/config
+    then
+        if [ "$exists_ok" ]
+        then
+            return
+        else
+            echo "$0: Error: name exists in your .ssh/config.  Refused to edit.  name=$name" >&2
+            exit 1
+        fi
+    fi
+    out=~/.ssh/config.d/$name
+    if [ -e "$out" ]
+    then
+        if [ "$exists_ok" ]
+        then
+            return
+        else
+            echo "$0: Error: file exists.  Refused to edit.  file=$out" >&2
+            exit 1
+        fi
+    else
+        ssh_config_fragment > "$out"
+    fi
+}
+
+main "$@"
