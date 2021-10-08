@@ -74,7 +74,7 @@ endif
 endif
 
 .PHONY: install-debs debs
-install-debs: $(DEBS)
+install-debs: debs
 	$(shell [ "$$(id -u)" = 0 ] || echo sudo) dpkg -i $(DEBS)
 $(DEBS) debs:
 	fakeroot -- sh -c 'SKIP_SYSTEMCTL=y ./debian/rules binary'
