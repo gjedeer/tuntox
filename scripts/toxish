@@ -51,7 +51,7 @@ function main
             ;;
         connect)
             shift
-            exists_ok
+            exists_ok=y
             tokssh_add "$@"
             exec ssh "$name"
             ;;
@@ -88,18 +88,13 @@ function tokssh_add
     then
         help
         exit 1
-    fi
-    if [ ${#2} = 76 ]
+    elif [ ${#2} != 76 ]
     then
-        name=$1
-        toxid=$2
-    elif [ ${#1} = 76 ]
-    then
-        name=$2
-        toxid=$1
-    else
         echo "$0: Error: Invalid ToxID: $2" >&2
         exit 1
+    else
+        name=$1
+        toxid=$2
     fi
     mkdir -p ~/.ssh/config.d
     mkdir -p ~/.tuntox/persist
