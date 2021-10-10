@@ -2,95 +2,72 @@
 set -e
 function help {
     cat <<EOF
-A simple wrapper to use like SSH
+TokSSH: Make an SSH connection over Tox.
+
+Use this simple wrapper like you would use "ssh".
 
 Usage:
-    tokssh [ssh options] [user@]address [-s secret]
+    tokssh [ssh options] [user@]<address>
+
+Usage:
+    TUNTOX_DESTINATION=[user@]<address> tokssh
 
 where
 
-    ssh options:   options to pass to ssh process
-    user:          login on remote host
-    address:       either a ToxID or a hostname. ~/.tuntox/hosts is read to map
-                hostname to ToxID. hostname MUST resolve to 127.0.0.1
+    ssh options:       options to pass to ssh process
+    user:              login username on remote host (you could also use "-l user")
+    address:           a ToxID
 
-    -s             optional secret to use to connect to tuntox server
+    To specify a tuntox secret (password), set the environment variable
+    TUNTOX_SECRET.
+
+    Specifying passwords on the command line is insecure, since the arguments of
+    programs are considered public data.
+
+    For that reason, you can also specify the remote address and username with
+    the environment variable TUNTOX_DESTINATION. This hides your desintation
+    from other users on the system. In this case, all options will be passed to
+    SSH.
 
 examples:
+
+    TUNTOX_SECRET=sOmEPassWOrd tokssh 5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
     tokssh user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
     tokssh 5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
-    tokssh -p 2222 -o ForwardAgent=yes user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
-    tokssh user@5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054 -s TuNToXSeCreT
+    tokssh -p 2222 -o ForwardAgent=yes -l user 5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054
+    TUNTOX_DESTINATION=5A40C3443ABD6E1DDEE682E83F84A4D556C24C22D2230DCC141A4723C123473C171A4D9C4054 tokssh -p 2222
 
 files:
     ~/.tuntox/persist/
 
       If directory exists, then read & store a persistent secret key/TOXID within.
 
-    ~/.tuntox/hosts
-
-      Maps hostname to ToxID and optional secret.
-
-      format is:
-
-        hostname    ToxID   secret(optional)
 EOF
 }
 
-strargs="'$*'"
-if [ -z "${strargs##*-h*}" ] || [ -z "${strargs##*--help*}" ] ;then
-    help
-    exit
-fi
-
-array=( $@ )
-len=${#array[@]}
-
-if [ $len -lt 1 ]; then
-    help
-    exit
-fi
-
-
-# look for secret and remvove it from args
-if [ $len -gt 2 ] && [ "${array[$len-2]}" == "-s" ]
+if [ "$TUNTOX_DESTINATION" ]
 then
-    secret="${array[@]:$len-2:$len-1}"
-    len=$[len-2]
+    set -- "$@" "$TUNTOX_DESTINATION"
+    unset TUNTOX_DESTINATION
 fi
 
-userhost=${array[$len-1]}
-args=${array[@]:0:$len-1}
-
-# check for user@id
-arruserhost=(${userhost//@/ })
-arruserhostlen=${#arruserhost[@]}
-
-if [ $arruserhostlen -gt 1 ]
-then
-    # last argument is user@toxid
-    user="${arruserhost[0]}@"
-    toxid=${arruserhost[1]}
-    hostname=$toxid
-else
-    # last argument is just toxid
-    user=""
-    toxid=$userhost
-    hostname=$toxid
-fi
-
-#search toxid in ~/.tuntox/hosts and map it to toxid
-if [ -f ~/.tuntox/hosts ]; then
-    while read c_hostname c_toxid c_secret; do
-        if [ "${c_hostname:0:1}" != "#" ] && [ "$c_hostname" == "$toxid" ]; then
-            toxid="$c_toxid"
-            if [ "$secret" == "" ]; then
-                secret="-s $c_secret"
-            fi
-            break
-        fi
-    done < ~/.tuntox/hosts
-fi
+while [ $# -gt 0 ]
+do
+    case "$1" in
+        -h|--help)
+            help
+            exit ;;
+        *)
+            if [ $# -eq 1 ]
+            then
+                break
+            else
+                ssh_options += "$1"
+            fi ;;
+    esac
+    shift
+done
+[ $# = 1 ] || { help; exit 1; }
 
 if [ -d ~/.tuntox/persist ]; then
     persist='-C ~/.tuntox/persist'
@@ -98,10 +75,18 @@ else
     persist=
 fi
 
+# Explicitly set the default values for CanonicalizeHostname and UpdateHostKeys,
+# just to be safe.
+
+# We use StrictHostKeyChecking=accept because Tox validates the Tox identity and
+# the Tox key is the identity.  We have already performed initial public key
+# exchange.
+
 ssh \
-    -o ProxyCommand="tuntox $persist -i $toxid -W localhost:%p $secret" \
-    -o StrictHostKeyChecking=accept-new \
+    -o ProxyCommand="tuntox $persist -i $toxid -W localhost:%p '$TUNTOX_SECRET'" \
+    -o StrictHostKeyChecking=accept \
     -o CanonicalizeHostname=no \
     -o UpdateHostKeys=yes \
-    $args \
-    ${user}${hostname}
+    "${ssh_options[@]}" \
+    -- \
+    "$1"
