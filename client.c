@@ -661,6 +661,8 @@ int do_client_loop(uint8_t *tox_id_str)
                 break;
             case 0xffffffff:
                 log_printf(L_ERROR, "You forgot a break statement\n");
+                exit(0);
+                break;
             case CLIENT_STATE_SHUTDOWN:
                 exit(0);
                 break;
