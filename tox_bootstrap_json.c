@@ -61,19 +61,27 @@ void do_bootstrap_file(Tox *tox, const char *json_file)
             continue;
         }
 
-        if (!isValidIPv4(ipv4->valuestring)) {
+        if (!is_valid_ipv4(ipv4->valuestring) && !is_valid_ipv6(ipv6->valuestring)) {
             log_printf(L_INFO, "Skipping \"%s:%d\" %s\n", ipv4->valuestring, port->valueint, pk->valuestring);
             continue;
         }
-
-        log_printf(L_INFO, "Bootstrapping from \"%s:%d\" %s\n", ipv4->valuestring, port->valueint, pk->valuestring);
 
         /* Could have used sodium here, but did not want to change dependencies. Alternative is:
             sodium_hex2bin(key_bin, sizeof(key_bin), pk->valuestring, sizeof(pk->valuestring)-1, NULL, NULL, NULL);
         */
         hex_string_to_bin(pk->valuestring, sizeof(pk->valuestring)-1, key_bin);
 
-        tox_bootstrap(tox, ipv4->valuestring, port->valueint, key_bin, NULL);
+        if(is_valid_ipv4(ipv4->valuestring))
+        {
+            tox_bootstrap(tox, ipv4->valuestring, port->valueint, key_bin, NULL);
+            log_printf(L_INFO, "Bootstrapping from \"%s:%d\" %s\n", ipv4->valuestring, port->valueint, pk->valuestring);
+        }
+
+        if(is_valid_ipv6(ipv6->valuestring))
+        {
+            tox_bootstrap(tox, ipv6->valuestring, port->valueint, key_bin, NULL);
+            log_printf(L_INFO, "Bootstrapping from \"%s:%d\" %s\n", ipv6->valuestring, port->valueint, pk->valuestring);
+        }
 
         tcp_ports = cJSON_GetObjectItemCaseSensitive(node, "tcp_ports");
         cJSON_ArrayForEach(tcp_port, tcp_ports) {

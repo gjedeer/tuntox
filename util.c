@@ -1,5 +1,6 @@
 #include "log.h"
 #include "util.h"
+#include <arpa/inet.h>
 #include <string.h>
 #include <tox/tox.h>
 #include <stdio.h>
@@ -228,8 +229,14 @@ size_t hex_string_to_bin(const char *hex_string, size_t hex_len, uint8_t *bytes)
 }
 
 /* Very stupid test to filter out hostnames */
-bool isValidIPv4(const char *ip_address)
+bool is_valid_ipv4(const char *ip_address)
 {
-   unsigned int a,b,c,d;
-   return sscanf(ip_address,"%u.%u.%u.%u", &a, &b, &c, &d) == 4;
+    unsigned int a,b,c,d;
+    return sscanf(ip_address,"%u.%u.%u.%u", &a, &b, &c, &d) == 4;
+}
+
+bool is_valid_ipv6(const char *ip_address)
+{
+   struct in6_addr result;
+   return (inet_pton(AF_INET6, ip_address, &result) == 1);
 }
