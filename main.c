@@ -1,6 +1,7 @@
 #include "main.h"
 #include "client.h"
 #include "tox_bootstrap.h"
+#include "tox_bootstrap_json.h"
 #include "log.h"
 
 #ifdef __MACH__
@@ -43,6 +44,9 @@ int nrules = 0;
 char rules_file[500] = "/etc/tuntox/rules";
 enum rules_policy_enum rules_policy = NONE;
 rule *rules = NULL;
+
+/* Bootstrap json file */
+char boot_json[500] = "/etc/tuntox/nodes.json";
 
 /* Ports and hostname for port forwarding */
 int remote_port = 0;
@@ -1270,7 +1274,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:s:f:W:dqhSF:DU:t:u:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:s:f:W:dqhSF:DU:t:u:b:")) != -1)
     {
         switch(oc)
         {
@@ -1421,6 +1425,9 @@ int main(int argc, char *argv[])
 				}
 				}
 				break;
+            case 'b':
+                strncpy(boot_json, optarg, sizeof(boot_json) - 1);
+                break;
             case '?':
             case 'h':
             default:
@@ -1523,6 +1530,7 @@ int main(int argc, char *argv[])
     tox_callback_self_connection_status(tox, handle_connection_status_change);
 
     do_bootstrap(tox);
+    do_bootstrap_file(tox, boot_json);
 
     if(client_mode)
     {
