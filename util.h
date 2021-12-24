@@ -15,5 +15,7 @@ void* file_raw(char *path, uint32_t *size);
 const char *readable_connection_status(TOX_CONNECTION status);
 int parse_local_port_forward(char *string, int *local_port, char **hostname, int *remote_port);
 int parse_pipe_port_forward(char *string, char **hostname, int *remote_port);
+size_t hex_string_to_bin(const char *hex_string, size_t hex_len, uint8_t *bytes);
+bool isValidIPv4(const char *ip_address);
 
 #endif

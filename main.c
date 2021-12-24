@@ -1254,6 +1254,7 @@ void help()
     fprintf(stderr, "    -F <path>   - create a PID file named <path>\n");
     fprintf(stderr, "    -U <username|userid> - drop privileges to <username> before forking. Use\n");
     fprintf(stderr, "                           numeric <userid> in static builds.\n");
+    fprintf(stderr, "    -b <path>   - bootstrap from Tox nodes in a JSON file like nodes.tox.chat/json\n");
     fprintf(stderr, "    -h          - this help message\n");
 }
 
