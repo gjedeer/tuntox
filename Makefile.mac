@@ -1,5 +1,5 @@
 SOURCES = $(wildcard *.c)
-DEPS=libtoxcore
+DEPS=toxcore
 CC=gcc
 CFLAGS=-g #-std=c99
 CFLAGS += $(shell pkg-config --cflags $(DEPS))
