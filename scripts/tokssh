@@ -51,6 +51,7 @@ then
     unset TUNTOX_DESTINATION
 fi
 
+ssh_options=()
 while [ $# -gt 0 ]
 do
     case "$1" in
@@ -83,8 +84,8 @@ fi
 # exchange.
 
 ssh \
-    -o ProxyCommand="tuntox $persist -i $toxid -W localhost:%p '$TUNTOX_SECRET'" \
-    -o StrictHostKeyChecking=accept \
+    -o ProxyCommand="tuntox $persist -i %h -W localhost:%p '$TUNTOX_SECRET'" \
+    -o StrictHostKeyChecking=accept-new \
     -o CanonicalizeHostname=no \
     -o UpdateHostKeys=yes \
     "${ssh_options[@]}" \
