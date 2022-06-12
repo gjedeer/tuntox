@@ -10,11 +10,11 @@ pipelines:
           - apt update
           - apt -y install pkg-config build-essential make libtoxcore-dev dh-make python3-jinja2 python3-requests curl
             #- dh_make -y --createorig -s -p `cat bb_version.txt` || echo
-          - tar -zcf ../tuntox_0.0.9.orig.tar.gz .
+          - tar -zcf ../tuntox_0.0.10.1.orig.tar.gz .
           - dpkg-buildpackage -us -uc
           - ls -l ..
-          - echo tuntox_0.0.9.`date +%Y%m%d%H%M%S`-$BITBUCKET_COMMIT >../bb_version.txt
-          - cp ../tuntox_0.0.9-1_amd64.deb ../`cat ../bb_version.txt`_amd64.deb
+          - echo tuntox_0.0.10.1.`date +%Y%m%d%H%M%S`-$BITBUCKET_COMMIT >../bb_version.txt
+          - cp ../tuntox_0.0.10.1-1_amd64.deb ../`cat ../bb_version.txt`_amd64.deb
           - curl -X POST "https://${BITBUCKET_USERNAME}:${BITBUCKET_APP_PASSWORD}@api.bitbucket.org/2.0/repositories/${BITBUCKET_REPO_OWNER}/${BITBUCKET_REPO_SLUG}/downloads" --form files=@"../"`cat ../bb_version.txt`"_amd64.deb"
 
 
