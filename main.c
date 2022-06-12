@@ -1223,39 +1223,39 @@ void do_daemonize()
 
 void help()
 {
-    fprintf(stderr, "tuntox - Forward ports over the Tox protocol\n\n");
-    fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "  tuntox ... # starts the server\n");
-    fprintf(stderr, "  tuntox -i <servertoxid> -L <localport>:<remoteaddress>:<remoteport> ... # starts the client\n\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  Server:\n");
-    fprintf(stderr, "    -i <toxid>  - whitelisted Tox ID (can be used multiple times)\n");
-    fprintf(stderr, "    -f <file>   - only allow connections to hostname/port combinations contained\n");
-    fprintf(stderr, "                  in <file>. Rules must be entered one per line with the\n");
-    fprintf(stderr, "                  <hostname>:<port> format\n");
-    fprintf(stderr, "  Client:\n");
-    fprintf(stderr, "    -i <toxid>  - remote point Tox ID\n");
-    fprintf(stderr, "    -L <localport>:<remotehostname>:<remoteport>\n");
-    fprintf(stderr, "                - forward <remotehostname>:<remoteport> to 127.0.0.1:<localport>\n");
-    fprintf(stderr, "    -W <remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to\n");
-    fprintf(stderr, "                                       stdin/stdout (SSH ProxyCommand mode)\n");
-    fprintf(stderr, "    -p          - ping the server from -i and exit\n");
-    fprintf(stderr, "  Common:\n");
-    fprintf(stderr, "    -C <dir>    - save private key in <dir> instead of /etc/tuntox in server\n");
-    fprintf(stderr, "                  mode\n");
-    fprintf(stderr, "    -s <secret> - shared secret used for connection authentication (max\n");
-    fprintf(stderr, "                  %u characters)\n", TOX_MAX_FRIEND_REQUEST_LENGTH-1);
-	fprintf(stderr, "    -t <port>   - set TCP relay port (0 disables TCP relaying)\n");
-	fprintf(stderr, "    -u <port>:<port> - set Tox UDP port range\n");
-    fprintf(stderr, "    -d          - debug mode (use twice to display toxcore log too)\n");
-    fprintf(stderr, "    -q          - quiet mode\n");
-    fprintf(stderr, "    -S          - send output to syslog instead of stderr\n");
-    fprintf(stderr, "    -D          - daemonize (fork) and exit (implies -S)\n");
-    fprintf(stderr, "    -F <path>   - create a PID file named <path>\n");
-    fprintf(stderr, "    -U <username|userid> - drop privileges to <username> before forking. Use\n");
-    fprintf(stderr, "                           numeric <userid> in static builds.\n");
-    fprintf(stderr, "    -b <path>   - bootstrap from Tox nodes in a JSON file like nodes.tox.chat/json\n");
-    fprintf(stderr, "    -h          - this help message\n");
+    fprintf(stdout, "tuntox - Forward ports over the Tox protocol\n\n");
+    fprintf(stdout, "Usage:\n");
+    fprintf(stdout, "  tuntox ... # starts the server\n");
+    fprintf(stdout, "  tuntox -i <servertoxid> -L <localport>:<remoteaddress>:<remoteport> ... # starts the client\n\n");
+    fprintf(stdout, "Options:\n");
+    fprintf(stdout, "  Server:\n");
+    fprintf(stdout, "    -i <toxid>  - whitelisted Tox ID (can be used multiple times)\n");
+    fprintf(stdout, "    -f <file>   - only allow connections to hostname/port combinations contained\n");
+    fprintf(stdout, "                  in <file>. Rules must be entered one per line with the\n");
+    fprintf(stdout, "                  <hostname>:<port> format\n");
+    fprintf(stdout, "  Client:\n");
+    fprintf(stdout, "    -i <toxid>  - remote point Tox ID\n");
+    fprintf(stdout, "    -L <localport>:<remotehostname>:<remoteport>\n");
+    fprintf(stdout, "                - forward <remotehostname>:<remoteport> to 127.0.0.1:<localport>\n");
+    fprintf(stdout, "    -W <remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to\n");
+    fprintf(stdout, "                                       stdin/stdout (SSH ProxyCommand mode)\n");
+    fprintf(stdout, "    -p          - ping the server from -i and exit\n");
+    fprintf(stdout, "  Common:\n");
+    fprintf(stdout, "    -C <dir>    - save private key in <dir> instead of /etc/tuntox in server\n");
+    fprintf(stdout, "                  mode\n");
+    fprintf(stdout, "    -s <secret> - shared secret used for connection authentication (max\n");
+    fprintf(stdout, "                  %u characters)\n", TOX_MAX_FRIEND_REQUEST_LENGTH-1);
+	fprintf(stdout, "    -t <port>   - set TCP relay port (0 disables TCP relaying)\n");
+	fprintf(stdout, "    -u <port>:<port> - set Tox UDP port range\n");
+    fprintf(stdout, "    -d          - debug mode (use twice to display toxcore log too)\n");
+    fprintf(stdout, "    -q          - quiet mode\n");
+    fprintf(stdout, "    -S          - send output to syslog instead of stdout\n");
+    fprintf(stdout, "    -D          - daemonize (fork) and exit (implies -S)\n");
+    fprintf(stdout, "    -F <path>   - create a PID file named <path>\n");
+    fprintf(stdout, "    -U <username|userid> - drop privileges to <username> before forking. Use\n");
+    fprintf(stdout, "                           numeric <userid> in static builds.\n");
+    fprintf(stdout, "    -b <path>   - bootstrap from Tox nodes in a JSON file like nodes.tox.chat/json\n");
+    fprintf(stdout, "    -h          - this help message\n");
 }
 
 int main(int argc, char *argv[])
