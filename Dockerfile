@@ -1,7 +1,7 @@
 FROM debian:sid AS builder
 WORKDIR /root
 RUN apt update && apt -y install pkg-config build-essential make libtoxcore-dev dh-make git python3-jinja2 python3-requests
-RUN git clone https://github.com/gjedeer/tuntox.git && cd tuntox && tar -zcf ../tuntox_0.0.10.1.orig.tar.gz . && dpkg-buildpackage -us -uc
+RUN git clone https://github.com/gjedeer/tuntox.git && cd tuntox && tar -zcf ../tuntox_0.0.10.1.orig.tar.gz . && dpkg-buildpackage -us -uc -v0.0.10.1-1
 
 FROM alpine:latest
 
