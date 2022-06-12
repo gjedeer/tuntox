@@ -1255,6 +1255,7 @@ void help()
     fprintf(stdout, "    -U <username|userid> - drop privileges to <username> before forking. Use\n");
     fprintf(stdout, "                           numeric <userid> in static builds.\n");
     fprintf(stdout, "    -b <path>   - bootstrap from Tox nodes in a JSON file like nodes.tox.chat/json\n");
+    fprintf(stdout, "    -V          - print version and exit\n");
     fprintf(stdout, "    -h          - this help message\n");
 }
 
@@ -1275,7 +1276,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:s:f:W:dqhSF:DU:t:u:b:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:s:f:W:dqhSF:DU:t:u:b:V")) != -1)
     {
         switch(oc)
         {
@@ -1429,6 +1430,9 @@ int main(int argc, char *argv[])
             case 'b':
                 strncpy(boot_json, optarg, sizeof(boot_json) - 1);
                 break;
+            case 'V':
+                print_version_stdout();
+                exit(0);
             case '?':
             case 'h':
             default:
