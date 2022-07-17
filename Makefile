@@ -3,15 +3,21 @@ DEPS=toxcore
 CC=gcc
 CFLAGS=-g -Wall #-std=c99
 CFLAGS += $(shell pkg-config --cflags $(DEPS))
-LDFLAGS=-g -pthread -lm -static -lrt
+LDFLAGS=-g -pthread -lm -static
 LDFLAGS += $(shell pkg-config --static --libs $(DEPS))
-DSO_LDFLAGS=-g -pthread -lm -lrt
+DSO_LDFLAGS=-g -pthread -lm
 DSO_LDFLAGS += $(shell pkg-config --libs $(DEPS))
 OBJECTS=$(SOURCES:.c=.o)
 INCLUDES = $(wildcard *.h)
 PYTHON = /usr/bin/env python3
 INSTALL = install -C
 INSTALL_MKDIR = $(INSTALL) -d -m 755
+OS=$(shell uname)
+
+ifneq ($(OS),Darwin)
+	LDFLAGS += -lrt
+	DSO_LDFLAGS += -lrt
+endif
 
 prefix ?= /usr
 bindir ?= $(prefix)/bin
