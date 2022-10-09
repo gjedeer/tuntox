@@ -67,15 +67,15 @@ function main
 function ssh_config_fragment
 {
     cat <<EOF
-Host $name
 # Cryptographic trust comes from Hostname, which is a Tox key hash.
 #
-# We know we're talking to someone who has this key hash because Tox crypto
-# verifies.
+# We know we're talking to someone who has this key hash because Tox's
+# cryptography verifies that.
 #
 # Thus we can safely disable StrictHostKeyChecking, and we can use this as a
 # secure channel to obtain and save SSH public keys for the remote server.
 
+Host $name
 StrictHostKeyChecking=no
 Hostname=$toxid
 ProxyCommand=tuntox -C ~/.tuntox/persist -i %h -W localhost:%p
@@ -98,7 +98,8 @@ function tokssh_add
     fi
     mkdir -p ~/.ssh/config.d
     mkdir -p ~/.tuntox/persist
-    grep -q '^Include config\.d/\*' ~/.ssh/config || sed -i -e '1i Include config.d/*' ~/.ssh/config
+    line='Include config.d/*.conf'
+    grep -qF "$LINE" ~/.ssh/config || sed -i -e "1i $LINE" ~/.ssh/config
     if grep -q "^Host $name" ~/.ssh/config
     then
         if [ "$exists_ok" ]
@@ -109,7 +110,7 @@ function tokssh_add
             exit 1
         fi
     fi
-    out=~/.ssh/config.d/$name
+    out=~/.ssh/config.d/$name.conf
     if [ -e "$out" ]
     then
         if [ "$exists_ok" ]
