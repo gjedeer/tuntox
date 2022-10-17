@@ -67,10 +67,11 @@ ALL_PROXY=http://42.3.182.149:80 ./tuntox -i ABCD123 -p
 In repos:
 
 * [Arch](https://www.archlinux.org/packages/community/x86_64/tuntox/)
+* [Homebrew](https://formulae.brew.sh/formula/tuntox)
+* [NixOS](https://github.com/NixOS/nixpkgs/blob/nixos-22.05/pkgs/tools/networking/tuntox/default.nix#L73) `nix-env -iA nixos.tuntox`
 
 Work in progress:
 * [Debian](https://bitbucket.org/gjedeer/tuntox/downloads/)
-* [NixOS](https://github.com/NixOS/nixpkgs/pull/32823)
 
 ## Can I run it with Docker?
 
