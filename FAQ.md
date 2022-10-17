@@ -69,6 +69,8 @@ In repos:
 * [Arch](https://www.archlinux.org/packages/community/x86_64/tuntox/)
 * [Homebrew](https://formulae.brew.sh/formula/tuntox)
 * [NixOS](https://github.com/NixOS/nixpkgs/blob/nixos-22.05/pkgs/tools/networking/tuntox/default.nix#L73) `nix-env -iA nixos.tuntox`
+* [Pentoo](https://github.com/pentoo/pentoo-overlay/tree/master/net-vpn/tuntox)
+* [Void](https://github.com/void-linux/void-packages/tree/master/srcpkgs/tuntox)
 
 Work in progress:
 * [Debian](https://bitbucket.org/gjedeer/tuntox/downloads/)
