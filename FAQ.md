@@ -53,7 +53,9 @@ Wait until https://github.com/gjedeer/tuntox/issues/41 is implemented. This chan
 
 ## How do I run over proxy/Tor?
 
-tuntox honors the `ALL_PROXY` environment variable when connecting to the Tox network. HTTP and SOCKS5 proxies are supported. In server mode, it does not use the proxy for tunneled connections - just for tox protocol. If that's important for you that tunelled connections use a proxy, use proxychains, torify or a similar tool.
+tuntox honors the `ALL_PROXY` environment variable when connecting to the Tox network. HTTP and SOCKS5 proxies are supported. 
+
+In server mode, it does not use the proxy for tunneled connections - just for tox protocol. If that's important for you that tunelled connections use a proxy, use proxychains, torify or a similar tool. In other words, if a client connects and requests google.com:443, the server will not use a proxy between itself and google.com.
 
 ```
 ALL_PROXY=socks5://127.0.0.1:9050 ./tuntox
