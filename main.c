@@ -1225,9 +1225,12 @@ void do_daemonize()
 void parse_all_proxy(struct Tox_Options *tox_options)
 {
     char *env;
-    char *all_proxy;
+    static char all_proxy[1024];
+    int len_of_env = 0;
 
     /* Remote SOCKS5 proxy host/port */
+    Tox_Proxy_Type proxy_type;
+    char *proto_name = "";
     char *hostname;
     int remote_port;
 
@@ -1245,33 +1248,52 @@ void parse_all_proxy(struct Tox_Options *tox_options)
         return;
     }
 
-    all_proxy = calloc(strlen(env) + 1, 1);
+    len_of_env = strlen(env);
+    if(len_of_env > 1023)
+    {
+        len_of_env = 1023;
+    }
 
-    for(i = 0; i < strlen(env); i++)
+    for(i = 0; i < len_of_env; i++)
     {
         all_proxy[i] = tolower(env[i]);
     }
+    all_proxy[len_of_env] = 0;
 
-    if(strncmp(all_proxy, "socks5://", strlen("socks5://")))
+    if(!strncmp(all_proxy, "socks5://", strlen("socks5://")))
     {
-        log_printf(L_WARNING, "%s is not a valid SOCKS5 proxy string", all_proxy);
-        free(all_proxy);
-        return;
+        proxy_type = TOX_PROXY_TYPE_SOCKS5;
+        proto_name = "SOCKS5";
+        p = all_proxy + strlen("socks5://");
+    }
+    else
+    {
+        if(!strncmp(all_proxy, "http://", strlen("http://")))
+        {
+            proxy_type = TOX_PROXY_TYPE_HTTP;
+            proto_name = "HTTP";
+            p = all_proxy + strlen("http://");
+        }
+        else
+        {
+            log_printf(L_WARNING, "%s is not a valid SOCKS5 or HTTP proxy string", all_proxy);
+            return;
+        }
     }
     
-    p = all_proxy + strlen("socks5://");
-    hostname = calloc(strlen(env) + 1, 1);
     if(parse_pipe_port_forward(p, &hostname, &remote_port))
     {
-        log_printf(L_WARNING, "%s is not a valid SOCKS5 proxy string", all_proxy);
-        free(all_proxy);
-        free(hostname);
+        log_printf(L_WARNING, "%s is not a valid %s proxy string", all_proxy, proto_name);
         return;
     }
 
-    log_printf(L_INFO, "Using SOCKS5 proxy at %s:%d for all connections", hostname, remote_port);
+    log_printf(L_INFO, "Using %s proxy at %s:%d for Tox network connections", proto_name, hostname, remote_port);
+    if(!client_mode)
+    {
+        log_printf(L_INFO, "%s proxy is not used for outgoing tunneled connections, just for Tox network traffic", proto_name);
+    }
 
-    tox_options_set_proxy_type(tox_options, TOX_PROXY_TYPE_SOCKS5);
+    tox_options_set_proxy_type(tox_options, proxy_type);
     tox_options_set_proxy_host(tox_options, hostname);
     tox_options_set_proxy_port(tox_options, remote_port);
     /* TODO: is this necessary? */
@@ -1314,6 +1336,9 @@ void help()
     fprintf(stdout, "    -b <path>   - bootstrap from Tox nodes in a JSON file like nodes.tox.chat/json\n");
     fprintf(stdout, "    -V          - print version and exit\n");
     fprintf(stdout, "    -h          - this help message\n");
+    fprintf(stdout, "Recognized environment variables:\n");
+    fprintf(stdout, "  TUNTOX_SHARED_SECRET\n");
+    fprintf(stdout, "  ALL_PROXY\n");
 }
 
 int main(int argc, char *argv[])
@@ -1568,18 +1593,14 @@ int main(int argc, char *argv[])
     tox = tox_new(&tox_options, &tox_new_err);
     if(tox == NULL)
     {
-        log_printf(L_DEBUG, "tox_new() failed (%u) - trying without proxy\n", tox_new_err);
-        if((tox_options.proxy_type != TOX_PROXY_TYPE_NONE) || (tox_options.proxy_type = TOX_PROXY_TYPE_NONE, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
+        log_printf(L_DEBUG, "tox_new() failed (%u) - trying without IPv6\n", tox_new_err);
+        if(!tox_options.ipv6_enabled || (tox_options.ipv6_enabled = 0, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
         {
-            log_printf(L_DEBUG, "tox_new() failed (%u) - trying without IPv6\n", tox_new_err);
-            if(!tox_options.ipv6_enabled || (tox_options.ipv6_enabled = 0, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
+            log_printf(L_DEBUG, "tox_new() failed (%u) - trying with Tor\n", tox_new_err);
+            if((tox_options.proxy_type = TOX_PROXY_TYPE_SOCKS5, tox_options.proxy_host="127.0.0.1", tox_options.proxy_port=9050, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
             {
-                log_printf(L_DEBUG, "tox_new() failed (%u) - trying with Tor\n", tox_new_err);
-                if((tox_options.proxy_type = TOX_PROXY_TYPE_SOCKS5, tox_options.proxy_host="127.0.0.1", tox_options.proxy_port=9050, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
-                {
-                    log_printf(L_ERROR, "tox_new() failed (%u) - exiting\n", tox_new_err);
-                    exit(1);
-                }
+                log_printf(L_ERROR, "tox_new() failed (%u) - exiting\n", tox_new_err);
+                exit(1);
             }
         }
     }
