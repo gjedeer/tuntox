@@ -1,3 +1,7 @@
+* This program uses the cJSON library Copyright (c) 2009-2017 Dave Gamble and cJSON contributors
+* This program uses the uthash library Copyright (c) 2003-2014, Troy D. Hanson     http://troydhanson.github.com/uthash/
+* This program uses the utarray library Copyright (c) 2008-2014, Troy D. Hanson   http://troydhanson.github.com/uthash/
+
 The GNU General Public License, Version 3, 29 June 2007 (GPLv3)
 ===============================================================
 

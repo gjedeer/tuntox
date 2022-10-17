@@ -125,4 +125,5 @@ int send_frame(protocol_frame *frame, uint8_t *data);
 int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_number);
 
 void print_version(void);
+void print_version_stdout(void);
 #endif
