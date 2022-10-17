@@ -51,6 +51,10 @@ There's, however, a chance that it will upgrade to UDP after a few minutes:
 
 Wait until https://github.com/gjedeer/tuntox/issues/41 is implemented. This change should improve speed and latency in the 10 Mbit/s+ range.
 
+## How do I run over proxy/Tor?
+
+tuntox honors the `ALL_PROXY` environment variable. As of now, only SOCKS5 
+
 ## Are there distribution packages?
 
 In repos:

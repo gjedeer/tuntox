@@ -1221,6 +1221,63 @@ void do_daemonize()
     kill( parent, SIGUSR1 );    
 }
 
+/* Parse the ALL_PROXY or all_proxy environment variable */
+void parse_all_proxy(struct Tox_Options *tox_options)
+{
+    char *env;
+    char *all_proxy;
+
+    /* Remote SOCKS5 proxy host/port */
+    char *hostname;
+    int remote_port;
+
+    char *p;
+    unsigned int i = 0;
+
+    env = getenv("ALL_PROXY");
+    if(!env)
+    {
+        env = getenv("all_proxy");
+    }
+
+    if(!env)
+    {
+        return;
+    }
+
+    all_proxy = calloc(strlen(env) + 1, 1);
+
+    for(i = 0; i < strlen(env); i++)
+    {
+        all_proxy[i] = tolower(env[i]);
+    }
+
+    if(strncmp(all_proxy, "socks5://", strlen("socks5://")))
+    {
+        log_printf(L_WARNING, "%s is not a valid SOCKS5 proxy string", all_proxy);
+        free(all_proxy);
+        return;
+    }
+    
+    p = all_proxy + strlen("socks5://");
+    hostname = calloc(strlen(env) + 1, 1);
+    if(parse_pipe_port_forward(p, &hostname, &remote_port))
+    {
+        log_printf(L_WARNING, "%s is not a valid SOCKS5 proxy string", all_proxy);
+        free(all_proxy);
+        free(hostname);
+        return;
+    }
+
+    log_printf(L_INFO, "Using SOCKS5 proxy at %s:%d for all connections", hostname, remote_port);
+
+    tox_options_set_proxy_type(tox_options, TOX_PROXY_TYPE_SOCKS5);
+    tox_options_set_proxy_host(tox_options, hostname);
+    tox_options_set_proxy_port(tox_options, remote_port);
+    /* TODO: is this necessary? */
+    tox_options_set_udp_enabled(tox_options, 0);
+}
+
 void help()
 {
     fprintf(stdout, "tuntox - Forward ports over the Tox protocol\n\n");
@@ -1489,6 +1546,7 @@ int main(int argc, char *argv[])
     tox_options.start_port = udp_start_port;
     tox_options.end_port = udp_end_port;
     tox_options.hole_punching_enabled = 1;
+    parse_all_proxy(&tox_options);
 
     log_printf(L_INFO, "Using %d for TCP relay port and %d-%d for UDP", 
         tox_options.tcp_port,
