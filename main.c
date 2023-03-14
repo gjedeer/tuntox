@@ -46,6 +46,9 @@ rule *rules = NULL;
 
 /* Ports and hostname for port forwarding */
 local_port_forward *local_port_forwards = NULL;
+/* Non-acknowledged local port forwards */
+local_port_forward *pending_port_forwards = NULL;
+uint32_t last_forward_id;
 
 /* Whether to daemonize/fork after startup */
 int daemonize = 0;
@@ -174,6 +177,7 @@ int tunnel_in_delete_queue(tunnel *t)
     return 0;
 }
 
+/* Delete the tunnel at the end of main loop */
 void tunnel_queue_delete(tunnel *t)
 {
     tunnel_list *tunnel_list_entry = NULL;
@@ -189,6 +193,18 @@ void tunnel_queue_delete(tunnel *t)
     tunnel_list_entry = calloc(sizeof(tunnel_list), 1);
     tunnel_list_entry->tun = t;
     LL_APPEND(tunnels_to_delete, tunnel_list_entry);
+}
+
+local_port_forward *local_port_forward_create()
+{
+    local_port_forward *forward = calloc(sizeof(local_port_forward), 1);
+    if(!forward)
+    {
+        return NULL;
+    }
+
+    forward->forward_id = ++last_forward_id;
+    forward->created = time();
 }
 
 /* bootstrap to dht with bootstrap_nodes */
@@ -238,6 +254,7 @@ void *get_in_addr(struct sockaddr *sa)
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+/* Connect to an endpoint, return sockfd */
 int get_client_socket(char *hostname, int port)
 {
     int sockfd;
@@ -383,7 +400,7 @@ int send_frame(protocol_frame *frame, uint8_t *data)
     return rv;
 }
 
-int send_tunnel_ack_frame(tunnel *tun, char *remote_hostname, int remote_port)
+int send_tunnel_ack_frame(tunnel *tun, uint32_t remote_forward_id)
 {
     protocol_frame frame_st;
     protocol_frame *frame;
@@ -394,13 +411,14 @@ int send_tunnel_ack_frame(tunnel *tun, char *remote_hostname, int remote_port)
 
     frame->packet_type = PACKET_TYPE_ACKTUNNEL;
     frame->connid = tun->connid;
-    frame->data_length = strlen(remote_hostname) + 3;
+    frame->data_length = 4;
     frame->friendnumber = tun->friendnumber;
 
     data = calloc(PROTOCOL_BUFFER_OFFSET + frame->data_length, 1);
-    data[PROTOCOL_BUFFER_OFFSET + 0] = BYTE1(remote_port);
-    data[PROTOCOL_BUFFER_OFFSET + 1] = BYTE2(remote_port);
-    strncpy(data + PROTOCOL_BUFFER_OFFSET + 2, remote_hostname, frame->data_length-2);
+    data[PROTOCOL_BUFFER_OFFSET+3] = BYTE1(remote_forward_id);
+    data[PROTOCOL_BUFFER_OFFSET+2] = BYTE2(remote_forward_id);
+    data[PROTOCOL_BUFFER_OFFSET+1] = BYTE3(remote_forward_id);
+    data[PROTOCOL_BUFFER_OFFSET] = BYTE4(remote_forward_id);
 
     return send_frame(frame, data);
 }
@@ -430,6 +448,8 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
     int port = -1;
     int sockfd = 0;
     uint16_t tunnel_id;
+    /* Client-side ID of the tunnel */
+    uint32_t remote_forward_id;
 
     if(client_mode)
     {
@@ -445,7 +465,9 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         return -1;
     }
 
-    strncpy(hostname, (char *)rcvd_frame->data, rcvd_frame->data_length);
+    remote_forward_id = UINT32_AT(rcvd_frame->data, 0);
+
+    strncpy(hostname, ((char *)rcvd_frame->data) + 4, rcvd_frame->data_length - 4);
     hostname[rcvd_frame->data_length] = '\0';
 
     log_printf(L_INFO, "Got a request to forward data from %s:%d\n", hostname, port);
@@ -490,7 +512,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
             FD_SET(sockfd, &master_server_fds);
             update_select_nfds(sockfd);
             log_printf(L_DEBUG, "Created tunnel, yay!\n");
-            send_tunnel_ack_frame(tun, hostname, port);
+            send_tunnel_ack_frame(tun, remote_forward_id);
         }
         else
         {
@@ -687,14 +709,18 @@ void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data,
     free(frame);
 }
 
-int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_number)
+int send_tunnel_request_packet(char *remote_host, int remote_port, uint32_t local_forward_id, int friend_number)
 {
     int packet_length = 0;
     protocol_frame frame_i, *frame;
     uint8_t *data = NULL;
 
     log_printf(L_INFO, "Sending packet to friend #%d to forward %s:%d\n", friend_number, remote_host, remote_port);
-    packet_length = PROTOCOL_BUFFER_OFFSET + strlen(remote_host);
+    packet_length = PROTOCOL_BUFFER_OFFSET + strlen(remote_host) + 4;
+    if(packet_length > TOX_MAX_CUSTOM_PACKET_SIZE)
+    {
+        log_printf(L_WARNING, "Not requesting port forward - host name %s is too long", remote_host);
+    }
     frame = &frame_i;
 
     data = calloc(1, packet_length);
@@ -703,12 +729,17 @@ int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_nu
         log_printf(L_ERROR, "Could not allocate memory for tunnel request packet\n");
         exit(1);
     }
-    memcpy((char *)data+PROTOCOL_BUFFER_OFFSET, remote_host, strlen(remote_host));
+    data[PROTOCOL_BUFFER_OFFSET+3] = BYTE1(local_forward_id);
+    data[PROTOCOL_BUFFER_OFFSET+2] = BYTE2(local_forward_id);
+    data[PROTOCOL_BUFFER_OFFSET+1] = BYTE3(local_forward_id);
+    data[PROTOCOL_BUFFER_OFFSET] = BYTE4(local_forward_id);
+
+    memcpy((char *)data+PROTOCOL_BUFFER_OFFSET+4, remote_host, strlen(remote_host));
 
     frame->friendnumber = friend_number;
     frame->packet_type = PACKET_TYPE_REQUESTTUNNEL;
     frame->connid = remote_port;
-    frame->data_length = strlen(remote_host);
+    frame->data_length = strlen(remote_host) + 4; 
 
     send_frame(frame, data);
 
@@ -1266,10 +1297,12 @@ int main(int argc, char *argv[])
     uint8_t *save_data = NULL;
     allowed_toxid *allowed_toxid_obj = NULL;
 	
-	srand(time(NULL));
-	tcp_relay_port = 1024 + (rand() % 64511);
-	udp_start_port = 1024 + (rand() % 64500);
-	udp_end_port = udp_start_port + 10;
+    srand(time(NULL));
+    tcp_relay_port = 1024 + (rand() % 64511);
+    udp_start_port = 1024 + (rand() % 64500);
+    udp_end_port = udp_start_port + 10;
+
+    last_forward_id = rand();
 
     log_init();
 
@@ -1278,7 +1311,7 @@ int main(int argc, char *argv[])
         switch(oc)
         {
             case 'L':
-                local_port_forward *port_forward = calloc(sizeof(local_port_forward), 1);
+                local_port_forward *port_forward = local_port_forward_create();
 
                 if(!port_forward) {
                     log_printf(L_ERROR, "Could not allocate memory for port forward\n");
@@ -1296,7 +1329,7 @@ int main(int argc, char *argv[])
                     exit(1);
                 }
 
-                LL_APPEND(local_port_forwards, port_forward);
+                LL_APPEND(pending_port_forwards, port_forward);
 
                 if(min_log_level == L_UNSET)
                 {

@@ -38,8 +38,11 @@
 #define PACKET_TYPE_TCP_FIN  0x0601
 
 #define INT16_AT(array,pos) ( (*((array)+(pos)))*256 + (*((array)+(pos)+1)) )
-#define BYTE2(number) (((number) / 256) & 0xff)
+#define INT32_AT(array,pos) ( (*((array)+(pos)))*256*256*256 + (*((array)+(pos)+1))*256*256 +(*((array)+(pos)+2))*256 + (*((array)+(pos)+3)) )
 #define BYTE1(number) ((number)&0xff)
+#define BYTE2(number) (((number) / 256) & 0xff)
+#define BYTE3(number) (((number) / (256*256)) & 0xff)
+#define BYTE4(number) (((number) / (256*256*256)) & 0xff)
 
 /* Offset of the data buffer in the packet */
 #define PROTOCOL_BUFFER_OFFSET 8
@@ -91,6 +94,12 @@ typedef struct local_port_forward_t {
     /* Client mode tunnel object for this port forward */
     tunnel *tun;
 
+    /* When the forward has been created - used in ack timeouts */
+    time_t created;
+
+    /* ID - used to identify the ack frame */
+    uint32_t forward_id;
+
     struct local_port_forward_t *next;
 } local_port_forward;
 
@@ -126,6 +135,9 @@ extern char shared_secret[TOX_MAX_FRIEND_REQUEST_LENGTH];
 
 extern int select_nfds;
 extern tunnel *by_id;
+
+extern local_port_forward *local_port_forwards;
+extern local_port_forward *pending_port_forwards;
 
 void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp);
 tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber);

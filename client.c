@@ -123,6 +123,8 @@ int local_bind() {
 int handle_acktunnel_frame(protocol_frame *rcvd_frame)
 {
     tunnel *tun;
+    uint32_t local_forward_id;
+    local_port_forward *forward;
 
     if(!client_mode)
     {
@@ -130,14 +132,37 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
         return -1;
     }
 
-    tun = tunnel_create(
-            client_tunnel.sockfd,
+    if(rcvd_frame->data_length < 3)
+    {
+        log_printf(L_WARNING, "Got ACK tunnel frame with not enough data");
+        return -1;
+    }
+
+    if(rcvd_frame->data_length > PROTOCOL_MAX_PACKET_SIZE) {
+        log_printf(L_WARNING, "Got ACK tunnel with wrong data length");
+        return -1;
+    }
+
+    local_forward_id = INT32_AT((rcvd_frame->data), 0);
+
+    forward = find_pending_forward_by_id(local_forward_id);
+    if(!forward)
+    {
+        log_printf(L_WARNING, "Got ACK tunnel with wrong forward ID %ld", local_forward_id);
+        return -1;
+    }
+    LL_DELETE(pending_port_forwards, forward);
+    /* TODO bind here? */
+    LL_APPEND(local_port_forwards, forward);
+
+    client_tunnel = tunnel_create(
+            0, /* sockfd */
             rcvd_frame->connid,
             rcvd_frame->friendnumber
     );
 
     /* Mark that we can accept() another connection */
-    client_tunnel.sockfd = -1;
+    client_tunnel->sockfd = -1;
 
 //    printf("New tunnel ID: %d\n", tun->connid);
 
@@ -481,6 +506,7 @@ int do_client_loop(uint8_t *tox_id_str)
                     send_tunnel_request_packet(
                             port_forward->remote_host,
                             port_forward->remote_port,
+                            port_forward->forward_id,
                             friendnumber
                     );
                 }
@@ -492,6 +518,7 @@ int do_client_loop(uint8_t *tox_id_str)
                     send_tunnel_request_packet(
                             port_forward->remote_host,
                             port_forward->remote_port,
+                            port_forward->forward_id,
                             friendnumber
                     );
                 }
@@ -499,6 +526,7 @@ int do_client_loop(uint8_t *tox_id_str)
                 break;
             case CLIENT_STATE_WAIT_FOR_ACKTUNNEL:
                 client_tunnel.sockfd = 0;
+                /* TODO REMOTE_L */
                 send_tunnel_request_packet(
                         remote_host,
                         remote_port,
