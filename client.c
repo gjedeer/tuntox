@@ -110,7 +110,7 @@ int local_bind_one(local_port_forward *port_forward)
     return 0;
 }
 
-int local_bind() {
+void local_bind() {
     local_port_forward *port_forward;
 
     LL_FOREACH(local_port_forwards, port_forward)
@@ -122,7 +122,6 @@ int local_bind() {
 /* Bind the client.sockfd to a tunnel */
 int handle_acktunnel_frame(protocol_frame *rcvd_frame)
 {
-    tunnel *tun;
     uint32_t local_forward_id;
     local_port_forward *forward;
 
@@ -152,24 +151,25 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
         return -1;
     }
     LL_DELETE(pending_port_forwards, forward);
-    /* TODO bind here? */
+    /* TODO MULTIPLE_L bind here? i dont think so, bind_sockfd should be already bound. to check. */
     LL_APPEND(local_port_forwards, forward);
 
-    client_tunnel = tunnel_create(
+    /* TODO MULTIPLE_L which sockfd? 0? -1? forward->bind_sockfd? see original impl. */
+    forward->tun = tunnel_create(
             0, /* sockfd */
             rcvd_frame->connid,
             rcvd_frame->friendnumber
     );
 
     /* Mark that we can accept() another connection */
-    client_tunnel->sockfd = -1;
+    forward->tun->sockfd = -1;
 
 //    printf("New tunnel ID: %d\n", tun->connid);
 
     if(client_local_port_mode || client_pipe_mode)
     {
-        update_select_nfds(tun->sockfd);
-        FD_SET(tun->sockfd, &client_master_fdset);
+        update_select_nfds(forward->tun->sockfd);
+        FD_SET(forward->tun->sockfd, &client_master_fdset);
         if(client_local_port_mode)
         {
             log_printf(L_INFO, "Accepted a new connection on port %d\n", local_port);
@@ -318,7 +318,6 @@ int do_client_loop(uint8_t *tox_id_str)
     TOX_ERR_FRIEND_CUSTOM_PACKET custom_packet_error;
     local_port_forward *port_forward;
 
-    client_tunnel.sockfd = 0;
     FD_ZERO(&client_master_fdset);
 
     tox_callback_friend_lossless_packet(tox, parse_lossless_packet);
@@ -544,6 +543,7 @@ int do_client_loop(uint8_t *tox_id_str)
                     tv.tv_usec = 20000;
                     fds = client_master_fdset;
                     
+                    /* TODO MULTIPLE_L loop over tunnels and sockfds */
                     /* Handle accepting new connections */
                     if(!client_pipe_mode &&
                         client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */

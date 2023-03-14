@@ -144,11 +144,7 @@ tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber);
 void tunnel_delete(tunnel *t);
 void update_select_nfds(int fd);
 int send_frame(protocol_frame *frame, uint8_t *data);
-int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_number);
-
-void update_select_nfds(int fd);
-int send_frame(protocol_frame *frame, uint8_t *data);
-int send_tunnel_request_packet(char *remote_host, int remote_port, int friend_number);
+int send_tunnel_request_packet(char *remote_host, int remote_port, uint32_t local_forward_id, int friend_number);
 
 void print_version(void);
 #endif
