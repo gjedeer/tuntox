@@ -538,7 +538,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
     else
     {
         log_printf(L_WARNING, "Could not connect to %s:%d\n", hostname, port);
-        /* TODO send reject */
+        /* TODO send PACKET_TYPE_REQUESTTUNNEL */
     }
 
     free(hostname);
