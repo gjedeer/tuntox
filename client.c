@@ -124,6 +124,7 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
 {
     uint32_t local_forward_id;
     local_port_forward *forward;
+    tunnel *tun;
 
     if(!client_mode)
     {
@@ -144,33 +145,33 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
 
     local_forward_id = INT32_AT((rcvd_frame->data), 0);
 
+    log_printf(L_DEBUG2, "Got ACK tunnel frame for local forward %ld", local_forward_id);
+
     forward = find_pending_forward_by_id(local_forward_id);
     if(!forward)
     {
         log_printf(L_WARNING, "Got ACK tunnel with wrong forward ID %ld", local_forward_id);
         return -1;
     }
-    LL_DELETE(pending_port_forwards, forward);
-    LL_APPEND(local_port_forwards, forward);
 
-    forward->tun = tunnel_create(
-            0, /* sockfd */
+    tun = tunnel_create(
+            forward->accept_sockfd, /* sockfd */
             rcvd_frame->connid,
             rcvd_frame->friendnumber
     );
 
     /* Mark that we can accept() another connection */
-    forward->tun->sockfd = -1;
+    forward->accept_sockfd = -1;
 
 //    printf("New tunnel ID: %d\n", tun->connid);
 
     if(client_local_port_mode || client_pipe_mode)
     {
-        update_select_nfds(forward->tun->sockfd);
-        FD_SET(forward->tun->sockfd, &client_master_fdset);
+        update_select_nfds(tun->sockfd);
+        FD_SET(tun->sockfd, &client_master_fdset);
         if(client_local_port_mode)
         {
-            log_printf(L_INFO, "Accepted a new connection on port %d\n", forward->local_port);
+            log_printf(L_INFO, "Accepted a new connection on port %d sockfd %d\n", forward->local_port);
         }
     }
     else
@@ -348,6 +349,7 @@ int do_client_loop(uint8_t *tox_id_str)
                 if(connection_status != TOX_CONNECTION_NONE)
                 {
                     state = CLIENT_STATE_CONNECTED;
+                    log_printf(L_DEBUG2, "Entered CLIENT_STATE_CONNECTED");
                 }
                 break;
             case CLIENT_STATE_CONNECTED:
@@ -393,6 +395,7 @@ int do_client_loop(uint8_t *tox_id_str)
                     invitation_sent_time = time(NULL);
                     invitations_sent++;
                     state = CLIENT_STATE_SENTREQUEST;
+                    log_printf(L_DEBUG2, "Entered CLIENT_STATE_SENTREQUEST");
                     log_printf(L_INFO, "Waiting for friend to accept us...\n");
                 }
                 break;
@@ -414,6 +417,7 @@ int do_client_loop(uint8_t *tox_id_str)
                             const char* status = readable_connection_status(friend_connection_status);
                             log_printf(L_INFO, "Friend request accepted (%s)!\n", status);
                             state = CLIENT_STATE_REQUEST_ACCEPTED;
+                            log_printf(L_DEBUG2, "Entered CLIENT_STATE_REQUEST_ACCEPTED");
                         }
                         else
                         {
@@ -433,6 +437,7 @@ int do_client_loop(uint8_t *tox_id_str)
                                 }
 
                                 state = CLIENT_STATE_CONNECTED;
+                                log_printf(L_DEBUG2, "Entered CLIENT_STATE_CONNECTED");
                             }
                         }
                     }
@@ -442,14 +447,17 @@ int do_client_loop(uint8_t *tox_id_str)
                 if(ping_mode)
                 {
                     state = CLIENT_STATE_SEND_PING;
+                    log_printf(L_DEBUG2, "Entered CLIENT_STATE_SEND_PING");
                 }
                 else if(client_pipe_mode)
                 {
                     state = CLIENT_STATE_SETUP_PIPE;
+                    log_printf(L_DEBUG2, "Entered CLIENT_STATE_SETUP_PIPE");
                 }
                 else
                 {
                     state = CLIENT_STATE_BIND_PORT;
+                    log_printf(L_DEBUG2, "Entered CLIENT_STATE_BIND_PORT");
                 }
                 break;
             case CLIENT_STATE_SEND_PING:
@@ -472,6 +480,7 @@ int do_client_loop(uint8_t *tox_id_str)
                 if(custom_packet_error == TOX_ERR_FRIEND_CUSTOM_PACKET_OK)
                 {
                     state = CLIENT_STATE_PING_SENT;
+                    log_printf(L_DEBUG2, "Entered CLIENT_STATE_PING_SENT");
                 }
                 else
                 {
@@ -485,15 +494,18 @@ int do_client_loop(uint8_t *tox_id_str)
             case CLIENT_STATE_BIND_PORT:
                 LL_FOREACH(local_port_forwards, port_forward)
                 {
+                    log_printf(L_DEBUG2, "Processing local port %d", port_forward->local_port);
                     if(port_forward->bind_sockfd < 0)
                     {
                         log_printf(L_ERROR, "Shutting down - could not bind to listening port %d\n", port_forward->local_port);
                         state = CLIENT_STATE_SHUTDOWN;
+                        log_printf(L_DEBUG2, "Entered CLIENT_STATE_SHUTDOWN");
                         break;
                     }
                     else
                     {
                         state = CLIENT_STATE_FORWARDING;
+                        log_printf(L_DEBUG2, "Entered CLIENT_STATE_FORWARDING");
                     }
                 }
                 break;
@@ -508,6 +520,7 @@ int do_client_loop(uint8_t *tox_id_str)
                     );
                 }
                 state = CLIENT_STATE_FORWARDING;
+                log_printf(L_DEBUG2, "Entered CLIENT_STATE_FORWARDING");
                 break;
             case CLIENT_STATE_REQUEST_TUNNEL:
                 LL_FOREACH(local_port_forwards, port_forward)
@@ -522,10 +535,9 @@ int do_client_loop(uint8_t *tox_id_str)
                 state = CLIENT_STATE_WAIT_FOR_ACKTUNNEL;
                 break;
             case CLIENT_STATE_WAIT_FOR_ACKTUNNEL:
-                /* TODO REMOTE_L */
                 LL_FOREACH(local_port_forwards, port_forward)
                 {
-                    port_forward->tun->sockfd = 0;
+                    port_forward->accept_sockfd = 0;
                     send_tunnel_request_packet(
                             port_forward->remote_host,
                             port_forward->remote_port,
@@ -545,21 +557,21 @@ int do_client_loop(uint8_t *tox_id_str)
                     tv.tv_sec = 0;
                     tv.tv_usec = 20000;
                     fds = client_master_fdset;
-                    
-                    /* TODO MULTIPLE_L loop over tunnels and sockfds */
+
                     /* Handle accepting new connections */
                     LL_FOREACH(local_port_forwards, port_forward)
                     {
                         if(!client_pipe_mode &&
-                            port_forward->tun->sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
+                            port_forward->accept_sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
                         {
+                            log_printf(L_DEBUG2, "FORWARDING: checking fd %d for local port %d", port_forward->bind_sockfd, port_forward->local_port);
                             accept_fd = accept(port_forward->bind_sockfd, NULL, NULL);
                             if(accept_fd != -1)
                             {
                                 log_printf(L_INFO, "Accepting a new connection - requesting tunnel...\n");
 
                                 /* Open a new tunnel for this FD */
-                                port_forward->tun->sockfd = accept_fd;
+                                port_forward->accept_sockfd = accept_fd;
                                 send_tunnel_request_packet(
                                         port_forward->remote_host,
                                         port_forward->remote_port,
@@ -704,6 +716,7 @@ int do_client_loop(uint8_t *tox_id_str)
                         else
                         {
                             state = CLIENT_STATE_FORWARDING;
+                            log_printf(L_DEBUG2, "Entered CLIENT_STATE_FORWARDING");
                         }
                     }
                 }

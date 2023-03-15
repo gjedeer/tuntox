@@ -27,7 +27,8 @@
 
 
 #define PROTOCOL_MAGIC_V1 0xa26a
-#define PROTOCOL_MAGIC PROTOCOL_MAGIC_V1
+#define PROTOCOL_MAGIC_V2 0xa26b
+#define PROTOCOL_MAGIC PROTOCOL_MAGIC_V2
 #define PROTOCOL_MAGIC_HIGH (PROTOCOL_MAGIC >> 8)
 #define PROTOCOL_MAGIC_LOW (PROTOCOL_MAGIC & 0xff)
 #define PACKET_TYPE_PONG 0x0100
@@ -91,8 +92,9 @@ typedef struct local_port_forward_t {
     /* Sock representing the local port - call accept() on it */
     int bind_sockfd;
 
-    /* Client mode tunnel object for this port forward */
-    tunnel *tun;
+    /* If tunnel open is pending, accepted sockfd is temporarly stored here */
+    /* -1 = we can accept another connection */
+    int accept_sockfd;
 
     /* When the forward has been created - used in ack timeouts */
     time_t created;
@@ -137,7 +139,6 @@ extern int select_nfds;
 extern tunnel *by_id;
 
 extern local_port_forward *local_port_forwards;
-extern local_port_forward *pending_port_forwards;
 
 local_port_forward *find_pending_forward_by_id(uint32_t local_forward_id);
 

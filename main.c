@@ -46,8 +46,6 @@ rule *rules = NULL;
 
 /* Ports and hostname for port forwarding */
 local_port_forward *local_port_forwards = NULL;
-/* Non-acknowledged local port forwards */
-local_port_forward *pending_port_forwards = NULL;
 uint32_t last_forward_id;
 
 /* Whether to daemonize/fork after startup */
@@ -213,7 +211,7 @@ local_port_forward *find_pending_forward_by_id(uint32_t local_forward_id)
 {
     local_port_forward *forward;
 
-    LL_FOREACH(pending_port_forwards, forward)
+    LL_FOREACH(local_port_forwards, forward)
     {
         if(forward->forward_id == local_forward_id)
         {
@@ -689,6 +687,10 @@ void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data,
     if(data[0] != PROTOCOL_MAGIC_HIGH || data[1] != PROTOCOL_MAGIC_LOW)
     {
         log_printf(L_WARNING, "Received data frame with invalid protocol magic number 0x%x%x\n", data[0], data[1]);
+        if(data[0] == (PROTOCOL_MAGIC_V1 >> 8) && data[1] == (PROTOCOL_MAGIC_V1 & 0xff)) 
+        {
+            log_printf(L_ERROR, "Tuntox on the other end uses old protocol version 1. Please upgrade it.");
+        }
         return;
     }
 
@@ -1347,7 +1349,7 @@ int main(int argc, char *argv[])
                     exit(1);
                 }
 
-                LL_APPEND(pending_port_forwards, port_forward);
+                LL_APPEND(local_port_forwards, port_forward);
 
                 if(min_log_level == L_UNSET)
                 {
@@ -1369,7 +1371,7 @@ int main(int argc, char *argv[])
                 {
                     min_log_level = L_ERROR;
                 }
-                LL_APPEND(pending_port_forwards, port_forward);
+                LL_APPEND(local_port_forwards, port_forward);
                 log_printf(L_INFO, "Forwarding remote port %d to stdin/out\n", port_forward->remote_port);
                 break;
             case 'p':
