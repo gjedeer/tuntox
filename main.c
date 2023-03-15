@@ -497,7 +497,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         temp_rule.host = hostname;
         temp_rule.port = port;
         
-        LL_SEARCH(rules, found, &temp_rule, rule_cmp);
+        LL_SEARCH(rules, found, &temp_rule, rule_match);
         if(!found)
         {
             log_printf(L_WARNING, "Rejected, request not in rules\n");
