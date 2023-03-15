@@ -82,7 +82,7 @@ typedef struct protocol_frame_t {
     uint8_t *data;
 } protocol_frame;
 
-/* A list of local port forwards (listen locally, forward to server */
+/* A list of local port forwards (listen locally, forward to server) */
 typedef struct local_port_forward_t {
     int local_port;
     char *remote_host;
@@ -138,6 +138,8 @@ extern tunnel *by_id;
 
 extern local_port_forward *local_port_forwards;
 extern local_port_forward *pending_port_forwards;
+
+local_port_forward *find_pending_forward_by_id(uint32_t local_forward_id);
 
 void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp);
 tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber);

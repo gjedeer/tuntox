@@ -204,7 +204,24 @@ local_port_forward *local_port_forward_create()
     }
 
     forward->forward_id = ++last_forward_id;
-    forward->created = time();
+    forward->created = time(NULL);
+
+    return forward;
+}
+
+local_port_forward *find_pending_forward_by_id(uint32_t local_forward_id)
+{
+    local_port_forward *forward;
+
+    LL_FOREACH(pending_port_forwards, forward)
+    {
+        if(forward->forward_id == local_forward_id)
+        {
+            return forward;
+        }
+    }
+    
+    return NULL;
 }
 
 /* bootstrap to dht with bootstrap_nodes */
@@ -465,7 +482,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         return -1;
     }
 
-    remote_forward_id = UINT32_AT(rcvd_frame->data, 0);
+    remote_forward_id = INT32_AT(rcvd_frame->data, 0);
 
     strncpy(hostname, ((char *)rcvd_frame->data) + 4, rcvd_frame->data_length - 4);
     hostname[rcvd_frame->data_length] = '\0';
@@ -1296,6 +1313,7 @@ int main(int argc, char *argv[])
     size_t save_size = 0;
     uint8_t *save_data = NULL;
     allowed_toxid *allowed_toxid_obj = NULL;
+    local_port_forward *port_forward = NULL;
 	
     srand(time(NULL));
     tcp_relay_port = 1024 + (rand() % 64511);
@@ -1311,7 +1329,7 @@ int main(int argc, char *argv[])
         switch(oc)
         {
             case 'L':
-                local_port_forward *port_forward = local_port_forward_create();
+                port_forward = local_port_forward_create();
 
                 if(!port_forward) {
                     log_printf(L_ERROR, "Could not allocate memory for port forward\n");
@@ -1335,13 +1353,14 @@ int main(int argc, char *argv[])
                 {
                     min_log_level = L_INFO;
                 }
-                log_printf(L_DEBUG, "Forwarding remote port %d to local port %d\n", remote_port, local_port);
+                log_printf(L_DEBUG, "Forwarding remote port %d to local port %d\n", port_forward->remote_port, port_forward->local_port);
                 break;
             case 'W':
                 /* Pipe forwarding */
+                port_forward = local_port_forward_create();
                 client_mode = 1;
                 client_pipe_mode = 1;
-                if(parse_pipe_port_forward(optarg, &remote_host, &remote_port) < 0)
+                if(parse_pipe_port_forward(optarg, &(port_forward->remote_host), &(port_forward->remote_port)) < 0)
                 {
                     log_printf(L_ERROR, "Invalid value for -W option - use something like -W 127.0.0.1:22\n");
                     exit(1);
@@ -1350,7 +1369,8 @@ int main(int argc, char *argv[])
                 {
                     min_log_level = L_ERROR;
                 }
-                log_printf(L_INFO, "Forwarding remote port %d to stdin/out\n", remote_port);
+                LL_APPEND(pending_port_forwards, port_forward);
+                log_printf(L_INFO, "Forwarding remote port %d to stdin/out\n", port_forward->remote_port);
                 break;
             case 'p':
                 /* Ping */

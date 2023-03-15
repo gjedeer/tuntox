@@ -151,10 +151,8 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
         return -1;
     }
     LL_DELETE(pending_port_forwards, forward);
-    /* TODO MULTIPLE_L bind here? i dont think so, bind_sockfd should be already bound. to check. */
     LL_APPEND(local_port_forwards, forward);
 
-    /* TODO MULTIPLE_L which sockfd? 0? -1? forward->bind_sockfd? see original impl. */
     forward->tun = tunnel_create(
             0, /* sockfd */
             rcvd_frame->connid,
@@ -172,7 +170,7 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
         FD_SET(forward->tun->sockfd, &client_master_fdset);
         if(client_local_port_mode)
         {
-            log_printf(L_INFO, "Accepted a new connection on port %d\n", local_port);
+            log_printf(L_INFO, "Accepted a new connection on port %d\n", forward->local_port);
         }
     }
     else
@@ -524,13 +522,17 @@ int do_client_loop(uint8_t *tox_id_str)
                 state = CLIENT_STATE_WAIT_FOR_ACKTUNNEL;
                 break;
             case CLIENT_STATE_WAIT_FOR_ACKTUNNEL:
-                client_tunnel.sockfd = 0;
                 /* TODO REMOTE_L */
-                send_tunnel_request_packet(
-                        remote_host,
-                        remote_port,
-                        friendnumber
-                );
+                LL_FOREACH(local_port_forwards, port_forward)
+                {
+                    port_forward->tun->sockfd = 0;
+                    send_tunnel_request_packet(
+                            port_forward->remote_host,
+                            port_forward->remote_port,
+                            port_forward->forward_id,
+                            friendnumber
+                    );
+                }
                 break;
             case CLIENT_STATE_FORWARDING:
                 {
@@ -538,6 +540,7 @@ int do_client_loop(uint8_t *tox_id_str)
                     int select_rv = 0;
                     tunnel *tmp = NULL;
                     tunnel *tun = NULL;
+                    local_port_forward *port_forward;
 
                     tv.tv_sec = 0;
                     tv.tv_usec = 20000;
@@ -545,21 +548,25 @@ int do_client_loop(uint8_t *tox_id_str)
                     
                     /* TODO MULTIPLE_L loop over tunnels and sockfds */
                     /* Handle accepting new connections */
-                    if(!client_pipe_mode &&
-                        client_tunnel.sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
+                    LL_FOREACH(local_port_forwards, port_forward)
                     {
-                        accept_fd = accept(bind_sockfd, NULL, NULL);
-                        if(accept_fd != -1)
+                        if(!client_pipe_mode &&
+                            port_forward->tun->sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
                         {
-                            log_printf(L_INFO, "Accepting a new connection - requesting tunnel...\n");
+                            accept_fd = accept(port_forward->bind_sockfd, NULL, NULL);
+                            if(accept_fd != -1)
+                            {
+                                log_printf(L_INFO, "Accepting a new connection - requesting tunnel...\n");
 
-                            /* Open a new tunnel for this FD */
-                            client_tunnel.sockfd = accept_fd;
-                            send_tunnel_request_packet(
-                                    remote_host,
-                                    remote_port,
-                                    friendnumber
-                            );
+                                /* Open a new tunnel for this FD */
+                                port_forward->tun->sockfd = accept_fd;
+                                send_tunnel_request_packet(
+                                        port_forward->remote_host,
+                                        port_forward->remote_port,
+                                        port_forward->forward_id,
+                                        friendnumber
+                                );
+                            }
                         }
                     }
 
