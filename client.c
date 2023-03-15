@@ -300,15 +300,25 @@ void client_close_all_connections()
     }
 }
 
+void on_friend_connection_status_changed(Tox *tox, uint32_t friend_number, Tox_Connection connection_status,
+        void *user_data)
+{
+    const char* status = readable_connection_status(connection_status);
+    log_printf(L_INFO, "Friend connection status changed to: %s (%d)\n", status, connection_status);
+
+    if(connection_status == TOX_CONNECTION_NONE)
+    {
+        state = CLIENT_STATE_CONNECTION_LOST;
+    }
+}
+
+
 /* Main loop for the client */
 int do_client_loop(uint8_t *tox_id_str)
 {
     unsigned char tox_packet_buf[PROTOCOL_MAX_PACKET_SIZE];
     unsigned char tox_id[TOX_ADDRESS_SIZE];
     uint32_t friendnumber = 0;
-    TOX_CONNECTION last_friend_connection_status = TOX_CONNECTION_NONE;
-    time_t last_friend_connection_status_received = 0;
-    time_t connection_lost_timestamp = 0;
     struct timeval tv;
     fd_set fds;
     static time_t invitation_sent_time = 0;
@@ -320,6 +330,7 @@ int do_client_loop(uint8_t *tox_id_str)
     FD_ZERO(&client_master_fdset);
 
     tox_callback_friend_lossless_packet(tox, parse_lossless_packet);
+    tox_callback_friend_connection_status(tox, on_friend_connection_status_changed);
 
     if(!string_to_id(tox_id, tox_id_str))
     {
@@ -409,9 +420,6 @@ int do_client_loop(uint8_t *tox_id_str)
                     }
                     else
                     {
-                        last_friend_connection_status_received = time(NULL);
-                        last_friend_connection_status = friend_connection_status;
-
                         if(friend_connection_status != TOX_CONNECTION_NONE)
                         {
                             const char* status = readable_connection_status(friend_connection_status);
@@ -657,36 +665,6 @@ int do_client_loop(uint8_t *tox_id_str)
                     }
 
                     fds = client_master_fdset;
-
-                    /* Check friend connection status changes */
-                    /* TODO: learned about tox_friend_connection_status_cb after writing this... */
-                    /* TODO: also check friend status tox_callback_friend_status */
-                    if(time(NULL) - last_friend_connection_status_received > 15)
-                    {
-                        TOX_CONNECTION friend_connection_status;
-                        friend_connection_status = tox_friend_get_connection_status(tox, friendnumber, &friend_query_error);
-                        if(friend_query_error != TOX_ERR_FRIEND_QUERY_OK)
-                        {
-                            log_printf(L_DEBUG, "tox_friend_get_connection_status: error %u\n", friend_query_error);
-                        }
-                        else
-                        {
-                            if(friend_connection_status != last_friend_connection_status)
-                            {
-                                const char* status = readable_connection_status(friend_connection_status);
-                                log_printf(L_INFO, "Friend connection status changed to: %s (%d)\n", status, friend_connection_status);
-
-                                if(friend_connection_status == TOX_CONNECTION_NONE)
-                                {
-                                    state = CLIENT_STATE_CONNECTION_LOST;
-                                    connection_lost_timestamp = time(NULL);
-                                }
-                            }
-
-                            last_friend_connection_status_received = time(NULL);
-                            last_friend_connection_status = friend_connection_status;
-                        }
-                    }
                 }
                 break;
             case CLIENT_STATE_CONNECTION_LOST:
