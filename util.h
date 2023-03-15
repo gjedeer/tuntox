@@ -18,5 +18,6 @@ int parse_pipe_port_forward(char *string, char **hostname, int *remote_port);
 size_t hex_string_to_bin(const char *hex_string, size_t hex_len, uint8_t *bytes);
 bool is_valid_ipv4(const char *ip_address);
 bool is_valid_ipv6(const char *ip_address);
+void save_printable_tox_id(const unsigned char *tox_printable_id, const char *path);
 
 #endif

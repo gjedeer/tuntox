@@ -1377,6 +1377,7 @@ void help()
     fprintf(stdout, "                  mode\n");
     fprintf(stdout, "    -s <secret> - shared secret used for connection authentication (max\n");
     fprintf(stdout, "                  %u characters)\n", TOX_MAX_FRIEND_REQUEST_LENGTH-1);
+    fprintf(stdout, "    -I <file>   - save local Tox ID in <file> in clear text format\n");
     fprintf(stdout, "    -t <port>   - set TCP relay port (0 disables TCP relaying)\n");
     fprintf(stdout, "    -u <port>:<port> - set Tox UDP port range\n");
     fprintf(stdout, "    -d          - debug mode (use twice to display toxcore log too)\n");
@@ -1402,6 +1403,7 @@ int main(int argc, char *argv[])
     int oc;
     size_t save_size = 0;
     uint8_t *save_data = NULL;
+    char *tox_id_path = NULL;
     allowed_toxid *allowed_toxid_obj = NULL;
     local_port_forward *port_forward = NULL;
 	
@@ -1414,7 +1416,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:s:f:W:dqhSF:DU:t:u:b:V")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:I:C:s:f:W:dqhSF:DU:t:u:b:V")) != -1)
     {
         switch(oc)
         {
@@ -1488,6 +1490,9 @@ int main(int argc, char *argv[])
                     exit(1);
                 }
                 LL_APPEND(allowed_toxids, allowed_toxid_obj);
+                break;
+            case 'I':
+                tox_id_path = optarg;
                 break;
             case 'C':
                 /* Config directory */
@@ -1696,6 +1701,11 @@ int main(int argc, char *argv[])
         tox_printable_id[TOX_ADDRESS_SIZE * 2] = '\0';
         log_printf(L_DEBUG, "Generated Tox ID: %s\n", tox_printable_id);
 
+        if(tox_id_path)
+        {
+            save_printable_tox_id(tox_printable_id, tox_id_path);
+        }
+
         tox_self_get_dht_id(tox, dht_key);
         to_hex(readable_dht_key, dht_key, TOX_PUBLIC_KEY_SIZE);
         log_printf(L_DEBUG, "DHT key: %s\n", readable_dht_key);
@@ -1724,6 +1734,11 @@ int main(int argc, char *argv[])
         id_to_string(tox_printable_id, tox_id);
         tox_printable_id[TOX_ADDRESS_SIZE * 2] = '\0';
         log_printf(L_INFO, "Using Tox ID: %s\n", tox_printable_id);
+
+        if(tox_id_path)
+        {
+            save_printable_tox_id(tox_printable_id, tox_id_path);
+        }
 
         tox_self_get_dht_id(tox, dht_key);
         to_hex(readable_dht_key, dht_key, TOX_PUBLIC_KEY_SIZE);

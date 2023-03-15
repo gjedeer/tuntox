@@ -1,6 +1,7 @@
 #include "log.h"
 #include "util.h"
 #include <arpa/inet.h>
+#include <errno.h>
 #include <string.h>
 #include <tox/tox.h>
 #include <stdio.h>
@@ -239,4 +240,16 @@ bool is_valid_ipv6(const char *ip_address)
 {
    struct in6_addr result;
    return (inet_pton(AF_INET6, ip_address, &result) == 1);
+}
+
+void save_printable_tox_id(const unsigned char *tox_printable_id, const char *path)
+{
+   FILE *f = fopen(path, "w");
+   if(!f)
+   {
+      log_printf(L_ERROR, "Could not write to %s: %d %s", path, errno, strerror(errno));
+   }
+   log_printf(L_DEBUG, "Writing Tox ID to %s", path);
+   fputs((char*)tox_printable_id, f);
+   fclose(f);
 }
