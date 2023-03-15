@@ -4,15 +4,15 @@ Tuntox is a program which forwards TCP connections over the [Tox](https://tox.ch
 
 Tuntox is a single binary which may run in client mode or server mode. As a rule of thumb, run the server on the remote machine you want to access and the client on your local computer from which you want to access the server.
 
-**Tuntox is in early work in progress stage**. It won't kill your goats but it may segfault, leak memory or have security issues (although I tried to make it rather secure). It won't be as fast as it could be because of the tremendous amount of debug output.
+**Tuntox is in early work in progress stage**. It won't kill your goats but it may segfault, leak memory or have security issues (although I tried to make it rather secure). 
 
-If you don't know what Tox is - it's an instant messenger protocol which is fully P2P, supports audio/video calls and file transfers. Unlike Skype it's fully open and unlike, say, XMPP - the calls and file transfers actually work. Go download a client from http://utox.org/ or read more at https://tox.chat/
+If you don't know what Tox is - it's an instant messenger protocol which is fully P2P, supports audio/video calls and file transfers. Unlike Skype it's fully open and unlike, say, XMPP - the calls and file transfers actually work P2P. Check out https://tox.chat/ and download a client when you have a chance.
 
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/5690/badge.svg)](https://scan.coverity.com/projects/5690) [![Travis Build Status](https://travis-ci.org/gjedeer/tuntox.svg?branch=master)](https://travis-ci.org/gjedeer/tuntox) 
 
 ## Binary
 
-Get the binaries from Releases tab on github. Just download the correct file for your architecture, execute chmod +x and you're done. The binaries are signed with my PGP key, [11C1 B15A 5D5D D662 E469 928A EBDA 6B97 4ED3 D2B7](https://keybase.io/gdr).
+Get the binaries from Releases tab on github. Just download the correct file for your architecture, execute chmod +x and you're done. The binaries are signed with my PGP key, [11C1 B15A 5D5D D662 E469 928A EBDA 6B97 4ED3 D2B7](https://keys.openpgp.org/search?q=11C1B15A5D5DD662E469928AEBDA6B974ED3D2B7).
 
 If you miss the times when men wrote their own device drivers, see BUILD.md.
 
