@@ -75,6 +75,21 @@ In repos:
 Work in progress:
 * [Debian](https://bitbucket.org/gjedeer/tuntox/downloads/)
 
+## Can I restrict client access to certain hosts only?
+
+Create a whitelist file with contents like this:
+
+```
+1.2.3.4:22
+127.0.0.1:80
+*:6667
+2.3.4.5:0
+```
+
+Asterisk is a wildcard for hosts. Zero is a wildcard for ports.
+
+Then run Tuntox with `-i <path to whitelist`.
+
 ## Can I run it with Docker?
 
 ATTENTION - DOCKER IMAGE MOVED FROM GITLAB TO DOCKERHUB ON 2020-08-15
