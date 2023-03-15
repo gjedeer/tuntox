@@ -1,5 +1,6 @@
 #include "log.h"
 #include "util.h"
+#include <arpa/inet.h>
 #include <string.h>
 #include <tox/tox.h>
 #include <stdio.h>
@@ -201,4 +202,41 @@ const char *readable_connection_status(TOX_CONNECTION status)
             log_printf(L_WARNING, "Received unknown connection status %d\n", (int)status);
             return "Unknown connection status";
     }
+}
+
+/* From https://github.com/TokTok/c-toxcore/blob/master/other/fun/cracker.c */
+size_t hex_string_to_bin(const char *hex_string, size_t hex_len, uint8_t *bytes)
+{
+    size_t i;
+    const char *pos = hex_string;
+    // make even
+    for (i = 0; i < hex_len / 2; ++i, pos += 2) {
+        uint8_t val;
+        if (sscanf(pos, "%02hhx", &val) != 1) {
+            return 0;
+        }
+        bytes[i] = val;
+    }
+    if (i * 2 < hex_len) {
+        uint8_t val;
+        if (sscanf(pos, "%hhx", &val) != 1) {
+            return 0;
+        }
+        bytes[i] = (uint8_t)(val << 4);
+        ++i;
+    }
+    return i;
+}
+
+/* Very stupid test to filter out hostnames */
+bool is_valid_ipv4(const char *ip_address)
+{
+    unsigned int a,b,c,d;
+    return sscanf(ip_address,"%u.%u.%u.%u", &a, &b, &c, &d) == 4;
+}
+
+bool is_valid_ipv6(const char *ip_address)
+{
+   struct in6_addr result;
+   return (inet_pton(AF_INET6, ip_address, &result) == 1);
 }

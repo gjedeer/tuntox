@@ -2,6 +2,7 @@
 #define _MAIN_H
 
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -151,4 +152,5 @@ int send_frame(protocol_frame *frame, uint8_t *data);
 int send_tunnel_request_packet(char *remote_host, int remote_port, uint32_t local_forward_id, int friend_number);
 
 void print_version(void);
+void print_version_stdout(void);
 #endif

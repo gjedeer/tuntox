@@ -1,5 +1,5 @@
 SOURCES = $(wildcard *.c)
-DEPS=libtoxcore
+DEPS=toxcore
 CC=gcc
 CFLAGS=-g #-std=c99
 CFLAGS += $(shell pkg-config --cflags $(DEPS))
@@ -7,6 +7,7 @@ LDFLAGS=-g -lm
 LDFLAGS += $(shell pkg-config --libs $(DEPS))
 OBJECTS=$(SOURCES:.c=.o)
 INCLUDES = $(wildcard *.h)
+LIB_DIR ?= /usr/local/lib
 
 all: cscope.out tuntox 
 
@@ -19,7 +20,7 @@ gitversion.c: gitversion.h
 	$(CC) $(CFLAGS) $< -c -o $@
 
 tuntox: $(OBJECTS) $(INCLUDES)
-	$(CC) -o $@ $(OBJECTS) -ltoxcore $(LDFLAGS) /usr/local/lib/libsodium.a /usr/local/lib/libtoxcore.a
+	$(CC) -o $@ $(OBJECTS) -ltoxcore $(LDFLAGS) $(LIB_DIR)/libsodium.a $(LIB_DIR)/libtoxcore.a
 
 cscope.out:
 	cscope -bv ./*.[ch] 

@@ -51,15 +51,29 @@ There's, however, a chance that it will upgrade to UDP after a few minutes:
 
 Wait until https://github.com/gjedeer/tuntox/issues/41 is implemented. This change should improve speed and latency in the 10 Mbit/s+ range.
 
+## How do I run over proxy/Tor?
+
+tuntox honors the `ALL_PROXY` environment variable when connecting to the Tox network. HTTP and SOCKS5 proxies are supported. 
+
+In server mode, it does not use the proxy for tunneled connections - just for tox protocol. If that's important for you that tunelled connections use a proxy, use proxychains, torify or a similar tool. In other words, if a client connects and requests google.com:443, the server will not use a proxy between itself and google.com.
+
+```
+ALL_PROXY=socks5://127.0.0.1:9050 ./tuntox
+ALL_PROXY=http://42.3.182.149:80 ./tuntox -i ABCD123 -p
+```
+
 ## Are there distribution packages?
 
 In repos:
 
 * [Arch](https://www.archlinux.org/packages/community/x86_64/tuntox/)
+* [Homebrew](https://formulae.brew.sh/formula/tuntox)
+* [NixOS](https://github.com/NixOS/nixpkgs/blob/nixos-22.05/pkgs/tools/networking/tuntox/default.nix#L73) `nix-env -iA nixos.tuntox`
+* [Pentoo](https://github.com/pentoo/pentoo-overlay/tree/master/net-vpn/tuntox)
+* [Void](https://github.com/void-linux/void-packages/tree/master/srcpkgs/tuntox)
 
 Work in progress:
 * [Debian](https://bitbucket.org/gjedeer/tuntox/downloads/)
-* [NixOS](https://github.com/NixOS/nixpkgs/pull/32823)
 
 ## Can I run it with Docker?
 

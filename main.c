@@ -1,6 +1,7 @@
 #include "main.h"
 #include "client.h"
 #include "tox_bootstrap.h"
+#include "tox_bootstrap_json.h"
 #include "log.h"
 
 #ifdef __MACH__
@@ -43,6 +44,9 @@ int nrules = 0;
 char rules_file[500] = "/etc/tuntox/rules";
 enum rules_policy_enum rules_policy = NONE;
 rule *rules = NULL;
+
+/* Bootstrap json file */
+char boot_json[500] = "/etc/tuntox/nodes.json";
 
 /* Ports and hostname for port forwarding */
 local_port_forward *local_port_forwards = NULL;
@@ -980,7 +984,7 @@ void cleanup()
     tox_kill(tox);
     if(client_socket)
     {
-	close(client_socket);
+        close(client_socket);
     }
     log_close();
 }
@@ -1270,40 +1274,124 @@ void do_daemonize()
     kill( parent, SIGUSR1 );    
 }
 
+/* Parse the ALL_PROXY or all_proxy environment variable */
+void parse_all_proxy(struct Tox_Options *tox_options)
+{
+    char *env;
+    static char all_proxy[1024];
+    int len_of_env = 0;
+
+    /* Remote SOCKS5 proxy host/port */
+    Tox_Proxy_Type proxy_type;
+    char *proto_name = "";
+    char *hostname;
+    int remote_port;
+
+    char *p;
+    unsigned int i = 0;
+
+    env = getenv("ALL_PROXY");
+    if(!env)
+    {
+        env = getenv("all_proxy");
+    }
+
+    if(!env)
+    {
+        return;
+    }
+
+    len_of_env = strlen(env);
+    if(len_of_env > 1023)
+    {
+        len_of_env = 1023;
+    }
+
+    for(i = 0; i < len_of_env; i++)
+    {
+        all_proxy[i] = tolower(env[i]);
+    }
+    all_proxy[len_of_env] = 0;
+
+    if(!strncmp(all_proxy, "socks5://", strlen("socks5://")))
+    {
+        proxy_type = TOX_PROXY_TYPE_SOCKS5;
+        proto_name = "SOCKS5";
+        p = all_proxy + strlen("socks5://");
+    }
+    else
+    {
+        if(!strncmp(all_proxy, "http://", strlen("http://")))
+        {
+            proxy_type = TOX_PROXY_TYPE_HTTP;
+            proto_name = "HTTP";
+            p = all_proxy + strlen("http://");
+        }
+        else
+        {
+            log_printf(L_WARNING, "%s is not a valid SOCKS5 or HTTP proxy string", all_proxy);
+            return;
+        }
+    }
+    
+    if(parse_pipe_port_forward(p, &hostname, &remote_port))
+    {
+        log_printf(L_WARNING, "%s is not a valid %s proxy string", all_proxy, proto_name);
+        return;
+    }
+
+    log_printf(L_INFO, "Using %s proxy at %s:%d for Tox network connections", proto_name, hostname, remote_port);
+    if(!client_mode)
+    {
+        log_printf(L_INFO, "%s proxy is not used for outgoing tunneled connections, just for Tox network traffic", proto_name);
+    }
+
+    tox_options_set_proxy_type(tox_options, proxy_type);
+    tox_options_set_proxy_host(tox_options, hostname);
+    tox_options_set_proxy_port(tox_options, remote_port);
+    /* TODO: is this necessary? */
+    tox_options_set_udp_enabled(tox_options, 0);
+}
+
 void help()
 {
-    fprintf(stderr, "tuntox - Forward ports over the Tox protocol\n\n");
-    fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "  tuntox ... # starts the server\n");
-    fprintf(stderr, "  tuntox -i <servertoxid> -L <localport>:<remoteaddress>:<remoteport> ... # starts the client\n\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  Server:\n");
-    fprintf(stderr, "    -i <toxid>  - whitelisted Tox ID (can be used multiple times)\n");
-    fprintf(stderr, "    -f <file>   - only allow connections to hostname/port combinations contained\n");
-    fprintf(stderr, "                  in <file>. Rules must be entered one per line with the\n");
-    fprintf(stderr, "                  <hostname>:<port> format\n");
-    fprintf(stderr, "  Client:\n");
-    fprintf(stderr, "    -i <toxid>  - remote point Tox ID\n");
-    fprintf(stderr, "    -L <localport>:<remotehostname>:<remoteport>\n");
-    fprintf(stderr, "                - forward <remotehostname>:<remoteport> to 127.0.0.1:<localport>\n");
-    fprintf(stderr, "    -W <remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to\n");
-    fprintf(stderr, "                                       stdin/stdout (SSH ProxyCommand mode)\n");
-    fprintf(stderr, "    -p          - ping the server from -i and exit\n");
-    fprintf(stderr, "  Common:\n");
-    fprintf(stderr, "    -C <dir>    - save private key in <dir> instead of /etc/tuntox in server\n");
-    fprintf(stderr, "                  mode\n");
-    fprintf(stderr, "    -s <secret> - shared secret used for connection authentication (max\n");
-    fprintf(stderr, "                  %u characters)\n", TOX_MAX_FRIEND_REQUEST_LENGTH-1);
-	fprintf(stderr, "    -t <port>   - set TCP relay port (0 disables TCP relaying)\n");
-	fprintf(stderr, "    -u <port>:<port> - set Tox UDP port range\n");
-    fprintf(stderr, "    -d          - debug mode (use twice to display toxcore log too)\n");
-    fprintf(stderr, "    -q          - quiet mode\n");
-    fprintf(stderr, "    -S          - send output to syslog instead of stderr\n");
-    fprintf(stderr, "    -D          - daemonize (fork) and exit (implies -S)\n");
-    fprintf(stderr, "    -F <path>   - create a PID file named <path>\n");
-    fprintf(stderr, "    -U <username|userid> - drop privileges to <username> before forking. Use\n");
-    fprintf(stderr, "                           numeric <userid> in static builds.\n");
-    fprintf(stderr, "    -h          - this help message\n");
+    fprintf(stdout, "tuntox - Forward ports over the Tox protocol\n\n");
+    fprintf(stdout, "Usage:\n");
+    fprintf(stdout, "  tuntox ... # starts the server\n");
+    fprintf(stdout, "  tuntox -i <servertoxid> -L <localport>:<remoteaddress>:<remoteport> ... # starts the client\n\n");
+    fprintf(stdout, "Options:\n");
+    fprintf(stdout, "  Server:\n");
+    fprintf(stdout, "    -i <toxid>  - whitelisted Tox ID (can be used multiple times)\n");
+    fprintf(stdout, "    -f <file>   - only allow connections to hostname/port combinations contained\n");
+    fprintf(stdout, "                  in <file>. Rules must be entered one per line with the\n");
+    fprintf(stdout, "                  <hostname>:<port> format\n");
+    fprintf(stdout, "  Client:\n");
+    fprintf(stdout, "    -i <toxid>  - remote point Tox ID\n");
+    fprintf(stdout, "    -L <localport>:<remotehostname>:<remoteport>\n");
+    fprintf(stdout, "                - forward <remotehostname>:<remoteport> to 127.0.0.1:<localport>\n");
+    fprintf(stdout, "    -W <remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to\n");
+    fprintf(stdout, "                                       stdin/stdout (SSH ProxyCommand mode)\n");
+    fprintf(stdout, "    -p          - ping the server from -i and exit\n");
+    fprintf(stdout, "  Common:\n");
+    fprintf(stdout, "    -C <dir>    - save private key in <dir> instead of /etc/tuntox in server\n");
+    fprintf(stdout, "                  mode\n");
+    fprintf(stdout, "    -s <secret> - shared secret used for connection authentication (max\n");
+    fprintf(stdout, "                  %u characters)\n", TOX_MAX_FRIEND_REQUEST_LENGTH-1);
+    fprintf(stdout, "    -t <port>   - set TCP relay port (0 disables TCP relaying)\n");
+    fprintf(stdout, "    -u <port>:<port> - set Tox UDP port range\n");
+    fprintf(stdout, "    -d          - debug mode (use twice to display toxcore log too)\n");
+    fprintf(stdout, "    -q          - quiet mode\n");
+    fprintf(stdout, "    -S          - send output to syslog instead of stdout\n");
+    fprintf(stdout, "    -D          - daemonize (fork) and exit (implies -S)\n");
+    fprintf(stdout, "    -F <path>   - create a PID file named <path>\n");
+    fprintf(stdout, "    -U <username|userid> - drop privileges to <username> before forking. Use\n");
+    fprintf(stdout, "                           numeric <userid> in static builds.\n");
+    fprintf(stdout, "    -b <path>   - bootstrap from Tox nodes in a JSON file like nodes.tox.chat/json\n");
+    fprintf(stdout, "    -V          - print version and exit\n");
+    fprintf(stdout, "    -h          - this help message\n");
+    fprintf(stdout, "Recognized environment variables:\n");
+    fprintf(stdout, "  TUNTOX_SHARED_SECRET\n");
+    fprintf(stdout, "  ALL_PROXY\n");
 }
 
 int main(int argc, char *argv[])
@@ -1326,7 +1414,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:C:s:f:W:dqhSF:DU:t:u:")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:C:s:f:W:dqhSF:DU:t:u:b:V")) != -1)
     {
         switch(oc)
         {
@@ -1425,18 +1513,18 @@ int main(int argc, char *argv[])
                 strncpy(shared_secret, optarg, TOX_MAX_FRIEND_REQUEST_LENGTH-1);
                 break;
             case 'd':
-				if(min_log_level == L_DEBUG2)
-				{
-					log_tox_trace = 1;
-				}
-				if(min_log_level != L_DEBUG && min_log_level != L_DEBUG2) 
-				{
-	                min_log_level = L_DEBUG;
-				}
-				else
-				{
-					min_log_level = L_DEBUG2;
-				}
+                if(min_log_level == L_DEBUG2)
+                {
+                    log_tox_trace = 1;
+                }
+                if(min_log_level != L_DEBUG && min_log_level != L_DEBUG2) 
+                {
+                    min_log_level = L_DEBUG;
+                }
+                else
+                {
+                    min_log_level = L_DEBUG2;
+                }
 
                 break;
             case 'q':
@@ -1455,42 +1543,48 @@ int main(int argc, char *argv[])
             case 'U':
                 daemon_username = optarg;
                 break;
-			case 't':
-				errno = 0;
-				tcp_relay_port = strtol(optarg, NULL, 10);
-				if(errno != 0 || tcp_relay_port < 0 || tcp_relay_port > 65535)
-				{
-					tcp_relay_port = 1024 + (rand() % 64511);
-					log_printf(L_WARNING, "Ignored -t %s: TCP port number needs to be a number between 0 and 65535.");
-				}
-				break;
-			case 'u':
-				{ /* TODO make a function in util.h */
-				char *sport;
-				char *eport;
+            case 't':
+                errno = 0;
+                tcp_relay_port = strtol(optarg, NULL, 10);
+                if(errno != 0 || tcp_relay_port < 0 || tcp_relay_port > 65535)
+                {
+                    tcp_relay_port = 1024 + (rand() % 64511);
+                    log_printf(L_WARNING, "Ignored -t %s: TCP port number needs to be a number between 0 and 65535.");
+                }
+                break;
+            case 'u':
+                { /* TODO make a function in util.h */
+                char *sport;
+                char *eport;
 
-				sport = strtok(optarg, ":");
-				eport = strtok(NULL, ":");
-				if(!sport || !eport)
-				{
-					log_printf(L_WARNING, "Ignored -u %s: wrong format");
-				}
-				else
-				{
-					errno = 0;
-					udp_start_port = strtol(sport, NULL, 10);
-					udp_end_port = strtol(eport, NULL, 10);
-					if(errno != 0 || udp_start_port < 1 || udp_start_port > 65535 || \
-					   udp_end_port < 1 || udp_end_port > 65535)
-					{
-						log_printf(L_WARNING, "Ignored -u %s: ports need to be integers between 1 and 65535");
-						udp_start_port = 1024 + (rand() % 64500);
-						udp_end_port = udp_start_port + 10;
-					}
+                sport = strtok(optarg, ":");
+                eport = strtok(NULL, ":");
+                if(!sport || !eport)
+                {
+                    log_printf(L_WARNING, "Ignored -u %s: wrong format");
+                }
+                else
+                {
+                    errno = 0;
+                    udp_start_port = strtol(sport, NULL, 10);
+                    udp_end_port = strtol(eport, NULL, 10);
+                    if(errno != 0 || udp_start_port < 1 || udp_start_port > 65535 || \
+                       udp_end_port < 1 || udp_end_port > 65535)
+                    {
+                        log_printf(L_WARNING, "Ignored -u %s: ports need to be integers between 1 and 65535");
+                        udp_start_port = 1024 + (rand() % 64500);
+                        udp_end_port = udp_start_port + 10;
+                    }
 
-				}
-				}
-				break;
+                }
+                }
+                break;
+            case 'b':
+                strncpy(boot_json, optarg, sizeof(boot_json) - 1);
+                break;
+            case 'V':
+                print_version_stdout();
+                exit(0);
             case '?':
             case 'h':
             default:
@@ -1537,22 +1631,23 @@ int main(int argc, char *argv[])
 
     /* Bootstrap tox */
     tox_options_default(&tox_options);
-	if(min_log_level >= L_DEBUG2)
-	{
-		tox_options.log_callback = on_tox_log;
-	}
-	tox_options.udp_enabled = 1;
-	tox_options.local_discovery_enabled = 1;
-	tox_options.tcp_port = tcp_relay_port;
-	tox_options.start_port = udp_start_port;
-	tox_options.end_port = udp_end_port;
-	tox_options.hole_punching_enabled = 1;
+    if(min_log_level >= L_DEBUG2)
+    {
+        tox_options.log_callback = on_tox_log;
+    }
+    tox_options.udp_enabled = 1;
+    tox_options.local_discovery_enabled = 1;
+    tox_options.tcp_port = tcp_relay_port;
+    tox_options.start_port = udp_start_port;
+    tox_options.end_port = udp_end_port;
+    tox_options.hole_punching_enabled = 1;
+    parse_all_proxy(&tox_options);
 
-	log_printf(L_INFO, "Using %d for TCP relay port and %d-%d for UDP", 
-		tox_options.tcp_port,
-		tox_options.start_port,
-		tox_options.end_port
-	);
+    log_printf(L_INFO, "Using %d for TCP relay port and %d-%d for UDP", 
+        tox_options.tcp_port,
+        tox_options.start_port,
+        tox_options.end_port
+    );
 
     if((!client_mode) || load_saved_toxid_in_client_mode)
     {
@@ -1568,18 +1663,14 @@ int main(int argc, char *argv[])
     tox = tox_new(&tox_options, &tox_new_err);
     if(tox == NULL)
     {
-        log_printf(L_DEBUG, "tox_new() failed (%u) - trying without proxy\n", tox_new_err);
-        if((tox_options.proxy_type != TOX_PROXY_TYPE_NONE) || (tox_options.proxy_type = TOX_PROXY_TYPE_NONE, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
+        log_printf(L_DEBUG, "tox_new() failed (%u) - trying without IPv6\n", tox_new_err);
+        if(!tox_options.ipv6_enabled || (tox_options.ipv6_enabled = 0, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
         {
-            log_printf(L_DEBUG, "tox_new() failed (%u) - trying without IPv6\n", tox_new_err);
-            if(!tox_options.ipv6_enabled || (tox_options.ipv6_enabled = 0, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
+            log_printf(L_DEBUG, "tox_new() failed (%u) - trying with Tor\n", tox_new_err);
+            if((tox_options.proxy_type = TOX_PROXY_TYPE_SOCKS5, tox_options.proxy_host="127.0.0.1", tox_options.proxy_port=9050, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
             {
-                log_printf(L_DEBUG, "tox_new() failed (%u) - trying with Tor\n", tox_new_err);
-                if((tox_options.proxy_type = TOX_PROXY_TYPE_SOCKS5, tox_options.proxy_host="127.0.0.1", tox_options.proxy_port=9050, (tox = tox_new(&tox_options, &tox_new_err)) == NULL))
-                {
-                    log_printf(L_ERROR, "tox_new() failed (%u) - exiting\n", tox_new_err);
-                    exit(1);
-                }
+                log_printf(L_ERROR, "tox_new() failed (%u) - exiting\n", tox_new_err);
+                exit(1);
             }
         }
     }
@@ -1593,6 +1684,7 @@ int main(int argc, char *argv[])
     tox_callback_self_connection_status(tox, handle_connection_status_change);
 
     do_bootstrap(tox);
+    do_bootstrap_file(tox, boot_json);
 
     if(client_mode)
     {
