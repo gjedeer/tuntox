@@ -1,12 +1,12 @@
-FROM debian:sid AS builder
-WORKDIR /root
-RUN apt update && apt -y install pkg-config build-essential make libtoxcore-dev dh-make git python3-jinja2 python3-requests
-RUN git clone https://github.com/gjedeer/tuntox.git && cd tuntox && tar -zcf ../tuntox_0.0.10.1.orig.tar.gz . && dpkg-buildpackage -us -uc -v0.0.10.1-1
+FROM alpine:edge AS builder
+WORKDIR /
+RUN echo http://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories && apk add toxcore-dev gcc g++ git make musl-dev cmake linux-headers libsodium-static && git clone https://github.com/TokTok/c-toxcore.git /c-toxcore && cd /c-toxcore/ && git submodule update --init && cd /c-toxcore/build/ && cmake .. -DBUILD_TOXAV=OFF -DBOOTSTRAP_DAEMON=off -DBUILD_AV_TEST=off -DFULLY_STATIC=on && make && make install
+RUN git clone https://github.com/gjedeer/tuntox.git /tuntox && cd /tuntox && make tuntox
 
 FROM alpine:latest
 
 COPY scripts/tokssh /usr/bin/tokssh
-COPY --from=0 /root/tuntox/tuntox /usr/bin/tuntox
+COPY --from=0 /tuntox/tuntox /usr/bin/tuntox
 
 RUN chmod +x /usr/bin/tuntox  /usr/bin/tokssh && \
 	mkdir /data
