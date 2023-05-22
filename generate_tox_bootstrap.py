@@ -21,7 +21,7 @@ struct bootstrap_node {
 } bootstrap_nodes[] = {
 {% for node in nodes %}
     {
-        "{{ node.ipv4 }}",
+        "{{ node.ip }}",
         {{ node.port }},
         {
             {{ node.public_key|toxtoc }}
@@ -33,7 +33,7 @@ struct bootstrap_node {
 struct bootstrap_node tcp_relays[] = {
 {% for node in relays %}
     {
-        "{{ node.ipv4 }}",
+        "{{ node.ip }}",
         {{ node.port }},
         {
             {{ node.public_key|toxtoc }}
@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
     for elem in data['nodes']:
         node = {}
-        if 'ipv4' not in elem or 'port' not in elem or 'public_key' not in elem:
+        if ('ipv4' not in elem and 'ipv6' not in elem) or 'port' not in elem or 'public_key' not in elem:
             print("SKIPPING", elem)
             continue
         
@@ -96,31 +96,37 @@ if __name__ == "__main__":
         node['port'] = int(elem['port'])
         node['public_key'] = elem['public_key']
 
-        try:
-            socket.inet_aton(elem['ipv4'])
-            node['ipv4'] = elem['ipv4']
-        except socket.error:
-            # IPv4 is not numeric, let's try resolving
-            try:
-                print("RESOLVING", elem['ipv4'])
-                node['ipv4'] = socket.gethostbyname(elem['ipv4'])
-            except socket.error:
-                print("Could not resolve ipv4: %s, skipping!" % elem['ipv4'])
+        for addr, family in (
+                (elem.get('ipv4', ''), socket.AF_INET),
+                (elem.get('ipv6', ''), socket.AF_INET6),
+                ):
+            if not addr.strip() or addr == '-':
                 continue
-
-        if 'status_udp' in elem and elem['status_udp']:
-            nodes.append(node)
-
-        if 'tcp_ports' in elem and elem['tcp_ports'] and \
-           'status_tcp' in elem and elem['status_tcp']:
-            for port in elem['tcp_ports']:
-                relay = dict(node)
+            try:
+                socket.inet_pton(family, addr)
+                node['ip'] = addr
+            except socket.error:
+                # IPv4 is not numeric, let's try resolving
                 try:
-                    relay['port'] = int(port)
-                except ValueError:
+                    print("RESOLVING", addr)
+                    node['ip'] = socket.gethostbyname(addr)
+                except socket.error:
+                    print("Could not resolve ip: %s, skipping!" % addr)
                     continue
 
-                tcp_relays.append(relay)
+            if 'status_udp' in elem and elem['status_udp']:
+                nodes.append(node)
+
+            if 'tcp_ports' in elem and elem['tcp_ports'] and \
+               'status_tcp' in elem and elem['status_tcp']:
+                for port in elem['tcp_ports']:
+                    relay = dict(node)
+                    try:
+                        relay['port'] = int(port)
+                    except ValueError:
+                        continue
+
+                    tcp_relays.append(relay)
 
     env = jinja2.Environment(loader=Loader())
     env.filters['toxtoc'] = toxtoc
