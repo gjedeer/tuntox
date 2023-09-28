@@ -1164,7 +1164,7 @@ static void child_handler(int signum)
 }
 
 /* 
- * Daemonize the process if -D is set
+ * Daemonize the process if -z is set
  * Optionally drop privileges and create a lock file
  */
 void do_daemonize()
@@ -1398,7 +1398,7 @@ void help()
     fprintf(stdout, "    -d          - debug mode (use twice to display toxcore log too)\n");
     fprintf(stdout, "    -q          - quiet mode\n");
     fprintf(stdout, "    -S          - send output to syslog instead of stdout\n");
-    fprintf(stdout, "    -D          - daemonize (fork) and exit (implies -S)\n");
+    fprintf(stdout, "    -z          - daemonize (fork) and exit (implies -S)\n");
     fprintf(stdout, "    -F <path>   - create a PID file named <path>\n");
     fprintf(stdout, "    -U <username|userid> - drop privileges to <username> before forking. Use\n");
     fprintf(stdout, "                           numeric <userid> in static builds.\n");
@@ -1431,7 +1431,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:I:C:s:f:W:dqhSF:DU:t:u:b:V")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:I:C:s:f:W:dqhSF:DzU:t:u:b:V")) != -1)
     {
         switch(oc)
         {
@@ -1553,7 +1553,7 @@ int main(int argc, char *argv[])
             case 'S':
                 use_syslog = 1;
                 break;
-            case 'D':
+            case 'z':
                 daemonize = 1;
                 use_syslog = 1;
                 break;

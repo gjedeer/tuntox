@@ -28,7 +28,7 @@ NAME=tuntox
 DAEMON=/usr/bin/$NAME
 DAEMON_CFG_DIR=/etc/tuntox/
 PIDFILE=/var/run/$NAME/$NAME.pid
-DAEMON_ARGS="-C $DAEMON_CFG_DIR -D -F $PIDFILE -U $USERID -d"
+DAEMON_ARGS="-C $DAEMON_CFG_DIR -z -F $PIDFILE -U $USERID -d"
 SCRIPTNAME=/etc/init.d/$NAME
 
 # Exit if packages not installed

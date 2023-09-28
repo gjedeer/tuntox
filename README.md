@@ -30,9 +30,9 @@ Alternatively you may use the -C switch instead:
 
     ./tuntox -C /path/to/the/config/directory/
 
-To daemonize on startup, add -D:
+To daemonize on startup, add -z:
 
-    /path/to/tuntox -D
+    /path/to/tuntox -z
 
 Or, if you run something like supervisord or systemd, you're welcome to contribute a configuration file for the system of your choice (see #3, #4, #6). There's absolutely no need to run the server as root.
 
