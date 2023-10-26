@@ -147,7 +147,7 @@ local_port_forward *find_pending_forward_by_id(uint32_t local_forward_id);
 void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp);
 tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber);
 void tunnel_delete(tunnel *t);
-void update_select_nfds(int fd);
+void update_select_nfds(int fd, fd_set *fds, int *old_select_nfds);
 int send_frame(protocol_frame *frame, uint8_t *data);
 int send_tunnel_request_packet(char *remote_host, int remote_port, uint32_t local_forward_id, int friend_number);
 

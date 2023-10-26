@@ -16,6 +16,7 @@ int state = CLIENT_STATE_INITIAL;
 struct timespec ping_sent_time;
 
 fd_set client_master_fdset;
+int client_select_nfds;
 
 int handle_pong_frame()
 {
@@ -105,7 +106,7 @@ int local_bind_one(local_port_forward *port_forward)
         exit(1);
     }
 
-    log_printf(L_DEBUG, "Bound to local port %d\n", port_forward->local_port);
+    log_printf(L_DEBUG, "Bound to local port %d sockfd %d\n", port_forward->local_port, port_forward->bind_sockfd);
 
     return 0;
 }
@@ -163,15 +164,13 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
     /* Mark that we can accept() another connection */
     forward->accept_sockfd = -1;
 
-//    printf("New tunnel ID: %d\n", tun->connid);
-
     if(client_local_port_mode || client_pipe_mode)
     {
-        update_select_nfds(tun->sockfd);
         FD_SET(tun->sockfd, &client_master_fdset);
+        update_select_nfds(tun->sockfd, &client_master_fdset, &client_select_nfds);
         if(client_local_port_mode)
         {
-            log_printf(L_INFO, "Accepted a new connection on port %d sockfd %d\n", forward->local_port);
+            log_printf(L_INFO, "Accepted a new connection on port %d sockfd %d connid %d\n", forward->local_port, tun->sockfd, tun->connid);
         }
     }
     else
@@ -572,7 +571,7 @@ int do_client_loop(uint8_t *tox_id_str)
                         if(!client_pipe_mode &&
                             port_forward->accept_sockfd <= 0) /* Don't accept if we're already waiting to establish a tunnel */
                         {
-                            log_printf(L_DEBUG2, "FORWARDING: checking fd %d for local port %d", port_forward->bind_sockfd, port_forward->local_port);
+                            //log_printf(L_DEBUG2, "FORWARDING: checking fd %d for local port %d", port_forward->bind_sockfd, port_forward->local_port);
                             accept_fd = accept(port_forward->bind_sockfd, NULL, NULL);
                             if(accept_fd != -1)
                             {
@@ -591,7 +590,7 @@ int do_client_loop(uint8_t *tox_id_str)
                     }
 
                     /* Handle reading from sockets */
-                    select_rv = select(select_nfds, &fds, NULL, NULL, &tv);
+                    select_rv = select(client_select_nfds, &fds, NULL, NULL, &tv);
                     if(select_rv == -1 || select_rv == 0)
                     {
                         if(select_rv == -1)
@@ -658,7 +657,7 @@ int do_client_loop(uint8_t *tox_id_str)
                                     frame->data_length = nbytes;
                                     send_frame(frame, tox_packet_buf);
 
-    //                                printf("Wrote %d bytes from sock %d to tunnel %d\n", nbytes, tun->sockfd, tun->connid);
+                                    log_printf(L_DEBUG2, "Wrote %d bytes from sock %d to tunnel %d\n", nbytes, tun->sockfd, tun->connid);
                                 }
                             }
                         }

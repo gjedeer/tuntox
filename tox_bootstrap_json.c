@@ -31,12 +31,12 @@ void do_bootstrap_file(Tox *tox, const char *json_file)
         }
         fclose (f);
     } else {
-        log_printf(L_INFO, "Could not find Tox bootstrap nodes. Using hardcoded.\n");
+        log_printf(L_INFO, "Could not find Tox bootstrap nodes in file %s. Using hardcoded.\n", json_file);
         return;
     }
 
     if (!buffer) {
-        log_printf(L_WARNING, "Could not read Tox bootstrap nodes.");
+        log_printf(L_WARNING, "Could not read Tox bootstrap nodes from file %s.", json_file);
         return;
     }
 
@@ -44,7 +44,7 @@ void do_bootstrap_file(Tox *tox, const char *json_file)
     if (nodes_json == NULL) {
         const char *error_ptr = cJSON_GetErrorPtr();
         if (error_ptr != NULL) {
-            log_printf(L_WARNING, "Error reading JSON before: %s\n", error_ptr);
+            log_printf(L_WARNING, "Error reading JSON from %s before: %s\n", json_file, error_ptr);
         }
         goto end;
     }

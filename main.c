@@ -36,6 +36,9 @@ long int tcp_relay_port = 0;
 long int udp_start_port = 0;
 long int udp_end_port = 0;
 
+/* SOCKS5 listen port */
+long int socks5_port = 0;
+
 /* Directory with config and tox save */
 char config_path[500] = "/etc/tuntox/";
 
@@ -119,18 +122,18 @@ int rule_match(rule *r, rule *candidate)
 
 /* When a file descriptor has been added to or removed from select() fdset,
  * we need to update select_nfds. */
-void update_select_nfds(int fd)
+void update_select_nfds(int fd, fd_set *fds, int *old_select_nfds)
 {
     int new_select_nfds = 0;
 
-    if(fd + 1 > select_nfds)
+    if(fd + 1 > *old_select_nfds)
     {
-        select_nfds = fd + 1;
+        *old_select_nfds = fd + 1;
     }
 
-    for(int i = 0; i < select_nfds; i++)
+    for(int i = 0; i < *old_select_nfds; i++)
     {
-	if(FD_ISSET(i, &master_server_fds))
+	if(FD_ISSET(i, fds))
 	{
 	    if(i + 1 > new_select_nfds)
 	    {
@@ -138,7 +141,12 @@ void update_select_nfds(int fd)
 	    }
 	}
     }
-    select_nfds = new_select_nfds;
+    *old_select_nfds = new_select_nfds;
+}
+
+void update_master_server_nfds(int fd)
+{
+    update_select_nfds(fd, &master_server_fds, &select_nfds);
 }
 
 /* Constructor. Returns NULL on failure. */
@@ -158,7 +166,7 @@ tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber)
 
     log_printf(L_INFO, "Created a new tunnel object connid=%d sockfd=%d\n", connid, sockfd);
 
-    update_select_nfds(t->sockfd);
+    update_master_server_nfds(t->sockfd);
 
     HASH_ADD_INT( by_id, connid, t );
 
@@ -173,7 +181,7 @@ void tunnel_delete(tunnel *t)
     {
         close(t->sockfd);
         FD_CLR(t->sockfd, &master_server_fds);
-	update_select_nfds(0);
+	update_master_server_nfds(0);
     }
     HASH_DEL( by_id, t );
     free(t);
@@ -544,7 +552,7 @@ int handle_request_tunnel_frame(protocol_frame *rcvd_frame)
         if(tun)
         {
             FD_SET(sockfd, &master_server_fds);
-            update_select_nfds(sockfd);
+            update_master_server_nfds(sockfd);
             log_printf(L_DEBUG, "Created tunnel, yay!\n");
             send_tunnel_ack_frame(tun, remote_forward_id);
         }
@@ -602,6 +610,7 @@ int handle_client_tcp_frame(protocol_frame *rcvd_frame)
             log_printf(L_WARNING, "Could not write to socket %d: %s\n", tun->sockfd, strerror(errno));
             return -1;
         }
+        log_printf(L_DEBUG2, "Sent %d bytes to tunnel %d\n", sent_bytes, tun->sockfd);
 
         offset += sent_bytes;
     }
@@ -1119,6 +1128,7 @@ int do_server_loop()
                     else
                     {
                         protocol_frame frame_st, *frame;
+                        log_printf(L_DEBUG2, "Read %d bytes from tunnel %d\n", nbytes, tun->sockfd);
 
                         frame = &frame_st;
                         memset(frame, 0, sizeof(protocol_frame));
@@ -1387,6 +1397,8 @@ void help()
     fprintf(stdout, "    -W <remotehostname>:<remoteport> - forward <remotehostname>:<remoteport> to\n");
     fprintf(stdout, "                                       stdin/stdout (SSH ProxyCommand mode)\n");
     fprintf(stdout, "    -p          - ping the server from -i and exit\n");
+    fprintf(stdout, "    -D <localport>\n");
+    fprintf(stdout, "                - start a SOCKS5 server on port <localport>\n");
     fprintf(stdout, "  Common:\n");
     fprintf(stdout, "    -C <dir>    - save private key in <dir> instead of /etc/tuntox in server\n");
     fprintf(stdout, "                  mode\n");
@@ -1431,7 +1443,7 @@ int main(int argc, char *argv[])
 
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:I:C:s:f:W:dqhSF:DzU:t:u:b:V")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:I:C:s:f:W:dqhSF:D:zU:t:u:b:V")) != -1)
     {
         switch(oc)
         {
@@ -1487,6 +1499,22 @@ int main(int argc, char *argv[])
                 {
                     min_log_level = L_INFO;
                 }
+                break;
+            case 'D':
+                /* SOCKS5 proxy */
+                client_mode = 1;
+                if (optarg == NULL || *optarg == '\0') {
+                    log_printf(L_ERROR, "Error: Missing or invalid argument for -D option.\n");
+                    exit(1);
+                }
+                char *endptr;
+                long int port = strtol(optarg, &endptr, 10);
+                if (*endptr != '\0' || port <= 0 || port > 65535) {
+                    log_printf(L_ERROR, "Error: Invalid port number for -D option.\n");
+                    exit(1);
+                }
+                socks5_port = (int)port;
+                log_printf(L_INFO, "Listening for SOCKS5 on port %d\n", socks5_port);
                 break;
             case 'i':
                 /* Tox ID */
