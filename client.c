@@ -586,6 +586,17 @@ int do_client_loop(uint8_t *tox_id_str)
                                         friendnumber
                                 );
                             }
+                            else
+                            {
+                                if(errno != EAGAIN && errno != EWOULDBLOCK) 
+                                {
+                                    log_printf(L_DEBUG, "Accept failed: code=%d (%s)\n", errno, strerror(errno));
+                                } 
+                                else 
+                                {
+                                    log_printf(L_DEBUG2, "Accept would block, no incoming connection right now\n");
+                                }
+                            }
                         }
                     }
 

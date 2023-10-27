@@ -179,7 +179,10 @@ void tunnel_delete(tunnel *t)
     log_printf(L_INFO, "Deleting tunnel #%d ptr %p\n", t->connid, t);
     if(t->sockfd)
     {
-        close(t->sockfd);
+        if(close(t->sockfd) == -1)
+        {
+            log_printf(L_DEBUG, "Failed to close socket: code=%d (%s)\n", errno, strerror(errno));
+        }
         FD_CLR(t->sockfd, &master_server_fds);
 	update_master_server_nfds(0);
     }
