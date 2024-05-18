@@ -26,6 +26,9 @@ int client_local_port_mode = 0;
 /* Forward stdin/stdout to remote machine - SSH ProxyCommand mode */
 int client_pipe_mode = 0;
 
+/* Send lossy packets */
+int lossy_mode = 0;
+
 /* Remote Tox ID in client mode */
 uint8_t *remote_tox_id = NULL;
 
@@ -80,6 +83,8 @@ tunnel_list *tunnels_to_delete = NULL;
 
 /* Highest used fd + 1 for select() */
 int select_nfds = 4;
+
+send_frame_fn send_frame = NULL;
 
 /* Generate an unique tunnel ID. To be used in a server. */
 uint16_t get_random_tunnel_id()
@@ -361,18 +366,18 @@ int get_client_socket(char *hostname, int port)
 /* Proto - our protocol handling */
 
 /* 
- * send_frame: (almost) zero-copy. Overwrites first PROTOCOL_BUFFER_OFFSET bytes of data 
+ * send_lossless_frame: (almost) zero-copy. Overwrites first PROTOCOL_BUFFER_OFFSET bytes of data 
  * so actual data should start at position PROTOCOL_BUFFER_OFFSET
  */
-int send_frame(protocol_frame *frame, uint8_t *data)
+int send_lossless_frame(protocol_frame *frame, uint8_t *data)
 {
     int rv = -1;
     int try = 0;
     int i;
     TOX_ERR_FRIEND_CUSTOM_PACKET custom_packet_error;
 
-    data[0] = PROTOCOL_MAGIC_HIGH;
-    data[1] = PROTOCOL_MAGIC_LOW;
+    data[0] = PROTOCOL_MAGIC_LOSSLESS_HIGH;
+    data[1] = PROTOCOL_MAGIC_LOSSLESS_LOW;
     data[2] = BYTE2(frame->packet_type);
     data[3] = BYTE1(frame->packet_type);
     data[4] = BYTE2(frame->connid);
@@ -434,6 +439,47 @@ int send_frame(protocol_frame *frame, uint8_t *data)
     return rv;
 }
 
+/* 
+ * send_lossy_frame: (almost) zero-copy. Overwrites first PROTOCOL_BUFFER_OFFSET bytes of data 
+ * so actual data should start at position PROTOCOL_BUFFER_OFFSET
+ */
+int send_lossy_frame(protocol_frame *frame, uint8_t *data)
+{
+    int rv = -1;
+    TOX_ERR_FRIEND_CUSTOM_PACKET custom_packet_error;
+
+    data[0] = PROTOCOL_MAGIC_LOSSY_HIGH;
+    data[1] = PROTOCOL_MAGIC_LOSSY_LOW;
+    data[2] = BYTE2(frame->packet_type);
+    data[3] = BYTE1(frame->packet_type);
+    data[4] = BYTE2(frame->connid);
+    data[5] = BYTE1(frame->connid);
+    data[6] = BYTE2(frame->data_length);
+    data[7] = BYTE1(frame->data_length);
+
+        rv = tox_friend_send_lossy_packet(
+                tox,
+                frame->friendnumber,
+                data,
+                frame->data_length + PROTOCOL_BUFFER_OFFSET,
+                &custom_packet_error
+        );
+
+        if(custom_packet_error != TOX_ERR_FRIEND_CUSTOM_PACKET_OK)
+        {
+            if(custom_packet_error == TOX_ERR_FRIEND_CUSTOM_PACKET_FRIEND_NOT_CONNECTED)
+            {
+                log_printf(L_DEBUG, "[lossy] Failed to send packet to friend %d (Friend gone)\n", frame->friendnumber);
+            }
+            else
+            {
+                log_printf(L_DEBUG, "[lossy] Failed to send packet to friend %d (err: %u)\n", frame->friendnumber, custom_packet_error);
+            }
+        }
+
+    return rv;
+}
+
 int send_tunnel_ack_frame(tunnel *tun, uint32_t remote_forward_id)
 {
     protocol_frame frame_st;
@@ -454,7 +500,9 @@ int send_tunnel_ack_frame(tunnel *tun, uint32_t remote_forward_id)
     data[PROTOCOL_BUFFER_OFFSET+1] = BYTE3(remote_forward_id);
     data[PROTOCOL_BUFFER_OFFSET] = BYTE4(remote_forward_id);
 
-    return send_frame(frame, data);
+    /* Send lossless frame because we don't want
+        to lose the tunnel ack response. */
+    return send_lossless_frame(frame, data);
 }
 
 int handle_ping_frame(protocol_frame *rcvd_frame)
@@ -681,43 +729,18 @@ int handle_frame(protocol_frame *frame)
 
     return 0;
 }
-
+ 
 /* 
- * This is a callback which gets a packet from Tox core.
- * It checks for basic inconsistiencies and allocates the
- * protocol_frame structure.
+ * Allocate the protocol_frame structure and parse a packet into it.
  */
-void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp)
-{
+protocol_frame *parse_packet(uint32_t friendnumber, const uint8_t *data, size_t len) {
     protocol_frame *frame = NULL;
-
-    if(len < PROTOCOL_BUFFER_OFFSET)
-    {
-        log_printf(L_WARNING, "Received too short data frame - only %d bytes, at least %d expected\n", len, PROTOCOL_BUFFER_OFFSET);
-        return;
-    }
-
-    if(!data)
-    {
-        log_printf(L_ERROR, "Got NULL pointer from toxcore - WTF?\n");
-        return;
-    }
-
-    if(data[0] != PROTOCOL_MAGIC_HIGH || data[1] != PROTOCOL_MAGIC_LOW)
-    {
-        log_printf(L_WARNING, "Received data frame with invalid protocol magic number 0x%x%x\n", data[0], data[1]);
-        if(data[0] == (PROTOCOL_MAGIC_V1 >> 8) && data[1] == (PROTOCOL_MAGIC_V1 & 0xff)) 
-        {
-            log_printf(L_ERROR, "Tuntox on the other end uses old protocol version 1. Please upgrade it.");
-        }
-        return;
-    }
-
+    
     frame = calloc(1, sizeof(protocol_frame));
     if(!frame)
     {
         log_printf(L_ERROR, "Could not allocate memory for protocol_frame_t\n");
-        return;
+        return NULL;
     }
 
     /* TODO check if friendnumber is the same in sender and connid tunnel*/
@@ -733,13 +756,85 @@ void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data,
     {
         log_printf(L_WARNING, "Received frame too small (attempted buffer overflow?): %d bytes, excepted at least %d bytes\n", len, frame->data_length + PROTOCOL_BUFFER_OFFSET);
         free(frame);
-        return;
+        return NULL;
     }
 
     if(frame->data_length > (TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET))
     {
         log_printf(L_WARNING, "Declared data length too big (attempted buffer overflow?): %d bytes, excepted at most %d bytes\n", frame->data_length, (TOX_MAX_CUSTOM_PACKET_SIZE - PROTOCOL_BUFFER_OFFSET));
         free(frame);
+        return NULL;
+    }
+
+
+    return frame;
+}
+
+/* 
+ * This is a callback which gets a lossless packet from 
+ * Tox core. It checks for basic inconsistiencies and
+ * allocates the protocol_frame structure.
+ */
+void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp)
+{
+    if(len < PROTOCOL_BUFFER_OFFSET)
+    {
+        log_printf(L_WARNING, "Received too short data frame - only %d bytes, at least %d expected\n", len, PROTOCOL_BUFFER_OFFSET);
+        return;
+    }
+
+    if(!data)
+    {
+        log_printf(L_ERROR, "Got NULL pointer from toxcore - WTF?\n");
+        return;
+    }
+
+    if(data[0] != PROTOCOL_MAGIC_LOSSLESS_HIGH || data[1] != PROTOCOL_MAGIC_LOSSLESS_LOW)
+    {
+        log_printf(L_WARNING, "Received data frame with invalid lossless protocol magic number 0x%x%x\n", data[0], data[1]);
+        if(data[0] == (PROTOCOL_MAGIC_V1_LOSSLESS >> 8) && data[1] == (PROTOCOL_MAGIC_V1_LOSSLESS & 0xff)) 
+        {
+            log_printf(L_ERROR, "Tuntox on the other end uses old protocol version 1. Please upgrade it.");
+        }
+        return;
+    }
+
+    protocol_frame *frame = parse_packet(friendnumber, data, len);
+    if (!frame) {
+        return;
+    }
+
+    handle_frame(frame);
+    free(frame);
+}
+
+/* 
+ * This is a callback which gets a lossy packet from 
+ * Tox core. It checks for basic inconsistiencies and
+ * allocates the protocol_frame structure.
+ */
+void parse_lossy_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp)
+{
+    if(len < PROTOCOL_BUFFER_OFFSET)
+    {
+        log_printf(L_WARNING, "Received too short data frame - only %d bytes, at least %d expected\n", len, PROTOCOL_BUFFER_OFFSET);
+        return;
+    }
+
+    if(!data)
+    {
+        log_printf(L_ERROR, "Got NULL pointer from toxcore - WTF?\n");
+        return;
+    }
+
+    if(data[0] != PROTOCOL_MAGIC_LOSSY_HIGH || data[1] != PROTOCOL_MAGIC_LOSSY_LOW)
+    {
+        log_printf(L_WARNING, "Received data frame with invalid lossy protocol magic number 0x%x%x\n", data[0], data[1]);
+        return;
+    }
+
+    protocol_frame *frame = parse_packet(friendnumber, data, len);
+    if (!frame) {
         return;
     }
 
@@ -779,7 +874,9 @@ int send_tunnel_request_packet(char *remote_host, int remote_port, uint32_t loca
     frame->connid = remote_port;
     frame->data_length = strlen(remote_host) + 4; 
 
-    send_frame(frame, data);
+    /* Send lossless frame because we don't want
+        to lose the tunnel request. */
+    send_lossless_frame(frame, data);
 
     free(data);
     return 0;
@@ -1017,6 +1114,7 @@ int do_server_loop()
     int sent_data = 0;
 
     tox_callback_friend_lossless_packet(tox, parse_lossless_packet);
+    tox_callback_friend_lossy_packet(tox, parse_lossy_packet);
 
     tv.tv_sec = 0;
     tv.tv_usec = 20000;
@@ -1397,6 +1495,7 @@ void help()
     fprintf(stdout, "    -u <port>:<port> - set Tox UDP port range\n");
     fprintf(stdout, "    -d          - debug mode (use twice to display toxcore log too)\n");
     fprintf(stdout, "    -q          - quiet mode\n");
+    fprintf(stdout, "    -l          - lossy mode\n");
     fprintf(stdout, "    -S          - send output to syslog instead of stdout\n");
     fprintf(stdout, "    -z          - daemonize (fork) and exit (implies -S)\n");
     fprintf(stdout, "    -F <path>   - create a PID file named <path>\n");
@@ -1429,9 +1528,11 @@ int main(int argc, char *argv[])
 
     last_forward_id = rand();
 
+    send_frame = send_lossless_frame;
+
     log_init();
 
-    while ((oc = getopt(argc, argv, "L:pi:I:C:s:f:W:dqhSF:DzU:t:u:b:V")) != -1)
+    while ((oc = getopt(argc, argv, "L:pi:I:C:s:f:W:dqlhSF:DzU:t:u:b:V")) != -1)
     {
         switch(oc)
         {
@@ -1549,6 +1650,10 @@ int main(int argc, char *argv[])
                 break;
             case 'q':
                 min_log_level = L_ERROR;
+                break;
+            case 'l':
+                lossy_mode = 1;
+                send_frame = send_lossy_frame;
                 break;
             case 'S':
                 use_syslog = 1;

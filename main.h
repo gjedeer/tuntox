@@ -27,11 +27,17 @@
 #include "utlist.h"
 
 
-#define PROTOCOL_MAGIC_V1 0xa26a
-#define PROTOCOL_MAGIC_V2 0xa26b
-#define PROTOCOL_MAGIC PROTOCOL_MAGIC_V2
-#define PROTOCOL_MAGIC_HIGH (PROTOCOL_MAGIC >> 8)
-#define PROTOCOL_MAGIC_LOW (PROTOCOL_MAGIC & 0xff)
+#define PROTOCOL_MAGIC_V1_LOSSLESS 0xa26a
+#define PROTOCOL_MAGIC_V2_LOSSLESS 0xa26b
+#define PROTOCOL_MAGIC_LOSSLESS PROTOCOL_MAGIC_V2_LOSSLESS
+#define PROTOCOL_MAGIC_LOSSLESS_HIGH (PROTOCOL_MAGIC_LOSSLESS >> 8)
+#define PROTOCOL_MAGIC_LOSSLESS_LOW (PROTOCOL_MAGIC_LOSSLESS & 0xff)
+
+#define PROTOCOL_MAGIC_V2_LOSSY 0xc96b
+#define PROTOCOL_MAGIC_LOSSY PROTOCOL_MAGIC_V2_LOSSY
+#define PROTOCOL_MAGIC_LOSSY_HIGH (PROTOCOL_MAGIC_LOSSY >> 8)
+#define PROTOCOL_MAGIC_LOSSY_LOW (PROTOCOL_MAGIC_LOSSY & 0xff)
+
 #define PACKET_TYPE_PONG 0x0100
 #define PACKET_TYPE_PING 0x0108
 #define PACKET_TYPE_REQUESTTUNNEL 0x0602 /* TODO - currently unused */
@@ -115,6 +121,8 @@ typedef struct rule {
     struct rule *next;
 } rule;
 
+typedef int (*send_frame_fn)(protocol_frame *frame, uint8_t *data);
+
 /**** GLOBAL VARIABLES ****/
 extern Tox *tox;
 /* Whether we're a client */
@@ -127,6 +135,8 @@ extern TOX_CONNECTION connection_status;
 extern int client_local_port_mode;
 /* Forward stdin/stdout to remote machine - SSH ProxyCommand mode */
 extern int client_pipe_mode;
+/* Send lossy packets */
+extern int lossy_mode;
 /* Remote Tox ID in client mode */
 extern uint8_t *remote_tox_id;
 /* Ports and hostname for port forwarding */
@@ -142,13 +152,16 @@ extern tunnel *by_id;
 
 extern local_port_forward *local_port_forwards;
 
+/* Default frame sending function */
+extern send_frame_fn send_frame;
+
 local_port_forward *find_pending_forward_by_id(uint32_t local_forward_id);
 
 void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp);
+void parse_lossy_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp);
 tunnel *tunnel_create(int sockfd, int connid, uint32_t friendnumber);
 void tunnel_delete(tunnel *t);
 void update_select_nfds(int fd);
-int send_frame(protocol_frame *frame, uint8_t *data);
 int send_tunnel_request_packet(char *remote_host, int remote_port, uint32_t local_forward_id, int friend_number);
 
 void print_version(void);

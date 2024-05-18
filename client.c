@@ -330,6 +330,7 @@ int do_client_loop(uint8_t *tox_id_str)
     FD_ZERO(&client_master_fdset);
 
     tox_callback_friend_lossless_packet(tox, parse_lossless_packet);
+    tox_callback_friend_lossy_packet(tox, parse_lossy_packet);
     tox_callback_friend_connection_status(tox, on_friend_connection_status_changed);
 
     if(!string_to_id(tox_id, tox_id_str))
@@ -471,19 +472,40 @@ int do_client_loop(uint8_t *tox_id_str)
             case CLIENT_STATE_SEND_PING:
                 /* Send the ping packet */
                 {
-                    uint8_t data[] = {
-                        0xa2, 0x6b, 0x01, 0x08, 0x00, 0x00, 0x00, 0x05, 
-                        0x48, 0x65, 0x6c, 0x6c, 0x6f
-                    };
+                    if (lossy_mode) 
+                    {
+                        uint8_t data[] = {
+                            PROTOCOL_MAGIC_LOSSY_HIGH, PROTOCOL_MAGIC_LOSSY_LOW,
+                            0x01, 0x08, 0x00, 0x00, 0x00, 0x05, 
+                            0x48, 0x65, 0x6c, 0x6c, 0x6f
+                        };
 
-                    clock_gettime(CLOCK_MONOTONIC, &ping_sent_time);
-                    tox_friend_send_lossless_packet(
-                            tox,
-                            friendnumber,
-                            data,
-                            sizeof(data),
-                            &custom_packet_error
-                    );
+                        clock_gettime(CLOCK_MONOTONIC, &ping_sent_time);
+                        tox_friend_send_lossy_packet(
+                                tox,
+                                friendnumber,
+                                data,
+                                sizeof(data),
+                                &custom_packet_error
+                        );
+                    }
+                    else 
+                    {
+                        uint8_t data[] = {
+                            PROTOCOL_MAGIC_LOSSLESS_HIGH, PROTOCOL_MAGIC_LOSSLESS_LOW,
+                            0x01, 0x08, 0x00, 0x00, 0x00, 0x05, 
+                            0x48, 0x65, 0x6c, 0x6c, 0x6f
+                        };
+
+                        clock_gettime(CLOCK_MONOTONIC, &ping_sent_time);
+                        tox_friend_send_lossless_packet(
+                                tox,
+                                friendnumber,
+                                data,
+                                sizeof(data),
+                                &custom_packet_error
+                        );
+                    }
                 }
                 if(custom_packet_error == TOX_ERR_FRIEND_CUSTOM_PACKET_OK)
                 {
