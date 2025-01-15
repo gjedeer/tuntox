@@ -31,6 +31,14 @@ gitversion.h: FORCE
 		echo "#define GITVERSION \"$(shell git rev-parse HEAD)\"" > $@; \
 	fi
 
+termux: PREFIX=/data/data/com.termux/files/usr
+termux: CFLAGS += -I$(PREFIX)/include
+termux: TERMUX_LDFLAGS = -L$(PREFIX)/lib -ltoxcore -ltoxencryptsave -lsodium -lm
+termux:
+	$(MAKE) clean
+	$(MAKE) gitversion.h tox_bootstrap.h $(OBJECTS)
+	$(CC) -o tuntox $(OBJECTS) $(TERMUX_LDFLAGS)
+
 
 FORCE:
 
@@ -58,4 +66,4 @@ install: tuntox_nostatic
 	$(INSTALL_MKDIR) -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) tuntox_nostatic $(DESTDIR)$(BINDIR)/tuntox
 
-.PHONY: all clean tuntox
+.PHONY: all clean tuntox termux
