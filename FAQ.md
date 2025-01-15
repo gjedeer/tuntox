@@ -88,7 +88,7 @@ Create a whitelist file with contents like this:
 
 Asterisk is a wildcard for hosts. Zero is a wildcard for ports.
 
-Then run Tuntox with `-i <path to whitelist`.
+Then run Tuntox with `-f <path to whitelist>`.
 
 ## Can I run it with Docker?
 
