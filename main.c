@@ -1108,7 +1108,7 @@ int do_server_loop()
 
                         if(nbytes == 0)
                         {
-                            log_printf(L_WARNING, "conn closed!\n");
+                            log_printf(L_DEBUG, "conn closed!\n");
                         }
                         else
                         {

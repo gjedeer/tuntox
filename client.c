@@ -272,7 +272,7 @@ int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame)
 
     if(!tun)
     {
-        log_printf(L_WARNING, "Got TCP FIN frame with unknown tunnel ID %d\n", rcvd_frame->connid);
+        log_printf(L_DEBUG, "Got TCP FIN frame with unknown tunnel ID %d\n", rcvd_frame->connid);
         return -1;
     }
 
