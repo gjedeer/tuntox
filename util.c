@@ -250,6 +250,7 @@ void save_printable_tox_id(const unsigned char *tox_printable_id, const char *pa
    if(!f)
    {
       log_printf(L_ERROR, "Could not write to %s: %d %s", path, errno, strerror(errno));
+      return;
    }
    log_printf(L_DEBUG, "Writing Tox ID to %s", path);
    fputs((char*)tox_printable_id, f);

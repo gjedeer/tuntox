@@ -25,9 +25,11 @@ void do_bootstrap_file(Tox *tox, const char *json_file)
         fseek (f, 0, SEEK_END);
         length = ftell (f);
         fseek (f, 0, SEEK_SET);
-        buffer = malloc (length);
-        if (buffer) {
-            fread (buffer, 1, length, f);
+        if(length > 0) {
+            buffer = malloc (length);
+            if (buffer) {
+                fread(buffer, 1, length, f);
+            }
         }
         fclose (f);
     } else {

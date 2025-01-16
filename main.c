@@ -474,6 +474,7 @@ int handle_ping_frame(protocol_frame *rcvd_frame)
     protocol_frame frame_s;
     protocol_frame *frame = &frame_s;
 
+    frame->connid = 0;
     frame->data = data + PROTOCOL_BUFFER_OFFSET;
     memcpy(frame->data, rcvd_frame->data, rcvd_frame->data_length);
 
@@ -631,7 +632,7 @@ int handle_client_tcp_fin_frame(protocol_frame *rcvd_frame)
 
     if(!tun)
     {
-        log_printf(L_WARNING, "Got TCP FIN frame with unknown tunnel ID %d\n", rcvd_frame->connid);
+        log_printf(L_DEBUG, "Got TCP FIN frame with unknown tunnel ID %d\n", rcvd_frame->connid);
         return -1;
     }
 
