@@ -18,7 +18,7 @@ struct timespec ping_sent_time;
 fd_set client_master_fdset;
 int client_select_nfds;
 
-int handle_pong_frame()
+int handle_pong_frame(protocol_frame *rcvd_frame)
 {
     struct timespec pong_rcvd_time;
     double secs1, secs2;

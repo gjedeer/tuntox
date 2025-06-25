@@ -15,7 +15,7 @@
 #define CLIENT_STATE_SETUP_PIPE 13
 #define CLIENT_STATE_CONNECTION_LOST 14
 
-int handle_pong_frame();
+int handle_pong_frame(protocol_frame *rcvd_frame);
 int handle_acktunnel_frame(protocol_frame *rcvd_frame);
 int handle_server_tcp_frame(protocol_frame *rcvd_frame);
 int handle_server_tcp_fin_frame(protocol_frame *rcvd_frame);
