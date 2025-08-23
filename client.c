@@ -8,6 +8,9 @@
 #include "log.h"
 #include "main.h"
 #include "client.h"
+#include "socks5.h"
+
+int socks5_listener_fd = -1;
 
 /* The state machine */
 int state = CLIENT_STATE_INITIAL;
@@ -120,6 +123,37 @@ void local_bind() {
     }
 }
 
+local_port_forward *find_forward_by_sock(int sockfd) {
+    local_port_forward *forward;
+    LL_FOREACH(local_port_forwards, forward) {
+        if (forward->accept_sockfd == sockfd) {
+            return forward;
+        }
+    }
+    return NULL;
+}
+
+/* Find a forward by its ID */
+local_port_forward *find_forward_by_id(uint32_t local_forward_id) {
+    local_port_forward *forward;
+    LL_FOREACH(local_port_forwards, forward) {
+        if (forward->forward_id == local_forward_id) {
+            return forward;
+        }
+    }
+    return NULL;
+}
+
+/* Find a PENDING forward by its ID */
+local_port_forward *find_pending_forward_by_id(uint32_t local_forward_id) {
+    local_port_forward *forward = find_forward_by_id(local_forward_id);
+    if(forward && forward->is_acked)
+    {
+        return NULL;
+    }
+    return forward;
+}
+
 /* Bind the client.sockfd to a tunnel */
 int handle_acktunnel_frame(protocol_frame *rcvd_frame)
 {
@@ -146,14 +180,16 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
 
     local_forward_id = INT32_AT((rcvd_frame->data), 0);
 
-    log_printf(L_DEBUG2, "Got ACK tunnel frame for local forward %ld", local_forward_id);
+    log_printf(L_DEBUG2, "Got ACK tunnel frame for local forward %u", local_forward_id);
 
     forward = find_pending_forward_by_id(local_forward_id);
     if(!forward)
     {
-        log_printf(L_WARNING, "Got ACK tunnel with wrong forward ID %ld", local_forward_id);
+        log_printf(L_WARNING, "Got ACK tunnel with wrong or already acked forward ID %u", local_forward_id);
         return -1;
     }
+
+    forward->is_acked = true;
 
     tun = tunnel_create(
             forward->accept_sockfd, /* sockfd */
@@ -161,10 +197,30 @@ int handle_acktunnel_frame(protocol_frame *rcvd_frame)
             rcvd_frame->friendnumber
     );
 
-    /* Mark that we can accept() another connection */
-    forward->accept_sockfd = -1;
+    log_printf(L_DEBUG2, "ACK for forward ID %u, is_socks5=%d", local_forward_id, forward->is_socks5);
 
-    if(client_local_port_mode || client_pipe_mode)
+    if (forward->is_socks5) {
+        int flags;
+        if (-1 == (flags = fcntl(tun->sockfd, F_GETFL, 0)))
+            flags = 0;
+        if (fcntl(tun->sockfd, F_SETFL, flags | O_NONBLOCK) < 0) {
+            log_printf(L_WARNING, "Could not make SOCKS5 socket non-blocking: %s", strerror(errno));
+            tunnel_delete(tun);
+            return -1;
+        }
+        log_printf(L_DEBUG2, "SOCKS5 socket %d set to non-blocking", tun->sockfd);
+
+        if (send_socks5_success_reply(tun->sockfd) != 0) {
+            tunnel_delete(tun);
+            return -1;
+        }
+        log_printf(L_DEBUG2, "Sent SOCKS5 success reply to sockfd %d", tun->sockfd);
+    } else {
+        /* Mark that we can accept() another connection */
+        forward->accept_sockfd = -1;
+    }
+
+    if(client_local_port_mode || client_pipe_mode || forward->is_socks5)
     {
         FD_SET(tun->sockfd, &client_master_fdset);
         update_select_nfds(tun->sockfd, &client_master_fdset, &client_select_nfds);
@@ -252,8 +308,21 @@ int handle_server_tcp_frame(protocol_frame *rcvd_frame)
 }
 
 /* Delete tunnel and clear client-side fdset */
-void client_close_tunnel(tunnel *tun) 
+void client_close_tunnel(tunnel *tun)
 {
+    local_port_forward *forward = find_forward_by_sock(tun->sockfd);
+    if (forward) {
+        if(forward->is_socks5)
+        {
+            log_printf(L_DEBUG, "Deleting SOCKS5 forward object %p", forward);
+            LL_DELETE(local_port_forwards, forward);
+            free(forward->remote_host);
+            free(forward);
+        } else {
+            forward->accept_sockfd = -1;
+        }
+    }
+
     if(tun->sockfd)
     {
         FD_CLR(tun->sockfd, &client_master_fdset);
@@ -311,6 +380,25 @@ void on_friend_connection_status_changed(Tox *tox, uint32_t friend_number, Tox_C
     }
 }
 
+void cleanup_stale_forwards() {
+    local_port_forward *forward, *tmp;
+    time_t now = time(NULL);
+
+    LL_FOREACH_SAFE(local_port_forwards, forward, tmp) {
+        if (forward->is_socks5 && !forward->is_acked) {
+            if (now - forward->created > 15) {
+                log_printf(L_INFO, "Cleaning up stale SOCKS5 forward ID %u (created %lds ago)", forward->forward_id, now - forward->created);
+                if (forward->accept_sockfd > 0) {
+                    close(forward->accept_sockfd);
+                    FD_CLR(forward->accept_sockfd, &client_master_fdset);
+                }
+                LL_DELETE(local_port_forwards, forward);
+                free(forward->remote_host);
+                free(forward);
+            }
+        }
+    }
+}
 
 /* Main loop for the client */
 int do_client_loop(uint8_t *tox_id_str)
@@ -343,12 +431,21 @@ int do_client_loop(uint8_t *tox_id_str)
         signal(SIGPIPE, SIG_IGN);
     }
 
+    if (socks5_port > 0) {
+        socks5_listener_fd = start_socks5_server(socks5_port);
+        if (socks5_listener_fd < 0) {
+            log_printf(L_ERROR, "Failed to start SOCKS5 server\n");
+            exit(1);
+        }
+    }
+
     log_printf(L_INFO, "Connecting to Tox...\n");
 
     while(1)
     {
         /* Let tox do its stuff */
         tox_iterate(tox, NULL);
+        cleanup_stale_forwards();
 
         switch(state)
         {
@@ -499,21 +596,28 @@ int do_client_loop(uint8_t *tox_id_str)
                 break;
 
             case CLIENT_STATE_BIND_PORT:
+                if (socks5_port > 0) {
+                    if (socks5_listener_fd < 0) {
+                        log_printf(L_ERROR, "Shutting down - could not bind to SOCKS5 port %ld\n", socks5_port);
+                        state = CLIENT_STATE_SHUTDOWN;
+                        break;
+                    }
+                }
                 LL_FOREACH(local_port_forwards, port_forward)
                 {
+                    if (port_forward->is_socks5) continue;
                     log_printf(L_DEBUG2, "Processing local port %d", port_forward->local_port);
                     if(port_forward->bind_sockfd < 0)
                     {
                         log_printf(L_ERROR, "Shutting down - could not bind to listening port %d\n", port_forward->local_port);
                         state = CLIENT_STATE_SHUTDOWN;
-                        log_printf(L_DEBUG2, "Entered CLIENT_STATE_SHUTDOWN");
                         break;
                     }
-                    else
-                    {
-                        state = CLIENT_STATE_FORWARDING;
-                        log_printf(L_DEBUG2, "Entered CLIENT_STATE_FORWARDING");
-                    }
+                }
+
+                if (state != CLIENT_STATE_SHUTDOWN) {
+                    state = CLIENT_STATE_FORWARDING;
+                    log_printf(L_DEBUG2, "Entered CLIENT_STATE_FORWARDING");
                 }
                 break;
             case CLIENT_STATE_SETUP_PIPE:
@@ -564,6 +668,35 @@ int do_client_loop(uint8_t *tox_id_str)
                     tv.tv_sec = 0;
                     tv.tv_usec = 20000;
                     fds = client_master_fdset;
+                    
+                    if (socks5_listener_fd > 0) {
+                        fd_set socks5_fds;
+                        struct timeval socks5_tv;
+                        FD_ZERO(&socks5_fds);
+                        FD_SET(socks5_listener_fd, &socks5_fds);
+                        socks5_tv.tv_sec = 0;
+                        socks5_tv.tv_usec = 0;
+
+                        if (select(socks5_listener_fd + 1, &socks5_fds, NULL, NULL, &socks5_tv) > 0) {
+                            int new_sock = accept(socks5_listener_fd, NULL, NULL);
+                            if (new_sock != -1) {
+                                char *remote_host = NULL;
+                                int remote_port = 0;
+                                if (handle_socks5_connection(new_sock, &remote_host, &remote_port) == 0) {
+                                    log_printf(L_INFO, "SOCKS5: Request to forward to %s:%d\n", remote_host, remote_port);
+                                    local_port_forward *fwd = local_port_forward_create();
+                                    fwd->remote_host = remote_host;
+                                    fwd->remote_port = remote_port;
+                                    fwd->accept_sockfd = new_sock;
+                                    fwd->is_socks5 = true;
+                                    LL_APPEND(local_port_forwards, fwd);
+                                    send_tunnel_request_packet(fwd->remote_host, fwd->remote_port, fwd->forward_id, friendnumber);
+                                } else {
+                                    close(new_sock);
+                                }
+                            }
+                        }
+                    }
 
                     /* Handle accepting new connections */
                     LL_FOREACH(local_port_forwards, port_forward)
@@ -601,20 +734,10 @@ int do_client_loop(uint8_t *tox_id_str)
                     }
 
                     /* Handle reading from sockets */
+
                     select_rv = select(client_select_nfds, &fds, NULL, NULL, &tv);
-                    if(select_rv == -1 || select_rv == 0)
-                    {
-                        if(select_rv == -1)
-                        {
-                            log_printf(L_DEBUG, "Reading from local socket failed: code=%d (%s)\n",
-                                    errno, strerror(errno));
-                        }
-                        else
-                        {
-                            log_printf(L_DEBUG2, "Nothing to read...");
-                        }
-                    }
-                    else
+
+                    if(select_rv > 0)
                     {
                         HASH_ITER(hh, by_id, tun, tmp)
                         {
@@ -636,12 +759,17 @@ int do_client_loop(uint8_t *tox_id_str)
                                 }
 
                                 /* Check if connection closed */
-                                if(nbytes == 0)
+                                if (nbytes <= 0)
                                 {
                                     uint8_t data[PROTOCOL_BUFFER_OFFSET];
                                     protocol_frame frame_st, *frame;
 
-                                    log_printf(L_INFO, "Connection closed\n");
+                                    if (nbytes == 0) {
+                                        //log_printf(L_INFO, "Connection closed on socket %d\n", tun->sockfd);
+                                    } else {
+                                        log_printf(L_WARNING, "recv failed on socket %d: %s\n", tun->sockfd, strerror(errno));
+                                    }
+
 
                                     frame = &frame_st;
                                     memset(frame, 0, sizeof(protocol_frame));
@@ -667,8 +795,6 @@ int do_client_loop(uint8_t *tox_id_str)
                                     frame->connid = tun->connid;
                                     frame->data_length = nbytes;
                                     send_frame(frame, tox_packet_buf);
-
-                                    log_printf(L_DEBUG2, "Wrote %d bytes from sock %d to tunnel %d\n", nbytes, tun->sockfd, tun->connid);
                                 }
                             }
                         }
@@ -721,4 +847,3 @@ int do_client_loop(uint8_t *tox_id_str)
         usleep(tox_iteration_interval(tox) * 1000);
     }
 }
-

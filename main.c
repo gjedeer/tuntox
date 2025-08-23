@@ -1,5 +1,6 @@
 #include "main.h"
 #include "client.h"
+#include "socks5.h"
 #include "tox_bootstrap.h"
 #include "tox_bootstrap_json.h"
 #include "log.h"
@@ -233,24 +234,11 @@ local_port_forward *local_port_forward_create()
 
     forward->forward_id = ++last_forward_id;
     forward->created = time(NULL);
+    forward->is_acked = false;
 
     return forward;
 }
 
-local_port_forward *find_pending_forward_by_id(uint32_t local_forward_id)
-{
-    local_port_forward *forward;
-
-    LL_FOREACH(local_port_forwards, forward)
-    {
-        if(forward->forward_id == local_forward_id)
-        {
-            return forward;
-        }
-    }
-    
-    return NULL;
-}
 
 /* bootstrap to dht with bootstrap_nodes */
 /* From uTox/tox.c */

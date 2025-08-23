@@ -104,6 +104,9 @@ typedef struct local_port_forward_t {
     /* ID - used to identify the ack frame */
     uint32_t forward_id;
 
+    bool is_socks5;
+    bool is_acked;
+
     struct local_port_forward_t *next;
 } local_port_forward;
 
@@ -127,6 +130,8 @@ extern TOX_CONNECTION connection_status;
 extern int client_local_port_mode;
 /* Forward stdin/stdout to remote machine - SSH ProxyCommand mode */
 extern int client_pipe_mode;
+/* SOCKS5 listen port */
+extern long int socks5_port;
 /* Remote Tox ID in client mode */
 extern uint8_t *remote_tox_id;
 /* Ports and hostname for port forwarding */
@@ -142,6 +147,8 @@ extern tunnel *by_id;
 
 extern local_port_forward *local_port_forwards;
 
+local_port_forward *local_port_forward_create();
+local_port_forward *find_forward_by_id(uint32_t local_forward_id);
 local_port_forward *find_pending_forward_by_id(uint32_t local_forward_id);
 
 void parse_lossless_packet(Tox *tox, uint32_t friendnumber, const uint8_t *data, size_t len, void *tmp);
