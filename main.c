@@ -1084,9 +1084,24 @@ int do_server_loop()
                 log_printf(L_DEBUG, "Current tunnel: %p", tun);
                 if(FD_ISSET(tun->sockfd, &fds))
                 {
-                    int nbytes = recv(tun->sockfd, 
-                            tox_packet_buf+PROTOCOL_BUFFER_OFFSET, 
-                            READ_BUFFER_SIZE, 0);
+                    size_t total_bytes_read = 0;
+                    ssize_t num_bytes_read;
+                    while (total_bytes_read < READ_BUFFER_SIZE) {
+                        num_bytes_read = recv(
+                            tun->sockfd,
+                            tox_packet_buf + PROTOCOL_BUFFER_OFFSET + total_bytes_read,
+                            READ_BUFFER_SIZE - total_bytes_read,
+                            MSG_DONTWAIT
+                        );
+                        if (num_bytes_read <= 0) {
+                            break;
+                        }
+                        total_bytes_read += num_bytes_read;
+                        if (num_bytes_read < (ssize_t)(READ_BUFFER_SIZE - total_bytes_read)) {
+                            break;
+                        }
+                    }
+                    int nbytes = total_bytes_read;
 
                     /* Check if connection closed */
                     if(nbytes <= 0)
