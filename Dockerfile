@@ -3,7 +3,9 @@ ARG TARGETPLATFORM
 ARG BUILDPLATFORM
 WORKDIR /
 RUN uname -a && echo http://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories && apk add gcc g++ git make musl-dev cmake linux-headers libsodium-dev libsodium-static && git clone https://github.com/TokTok/c-toxcore.git /c-toxcore && cd /c-toxcore/ && git submodule update --init && cd /c-toxcore/build/ && cmake .. -DBUILD_TOXAV=OFF -DBOOTSTRAP_DAEMON=off -DBUILD_AV_TEST=off -DFULLY_STATIC=on && make && make install
-RUN git clone https://github.com/gjedeer/tuntox.git /tuntox && cd /tuntox && make tuntox
+#RUN git clone https://github.com/gjedeer/tuntox.git /tuntox && cd /tuntox && make tuntox
+COPY . /tuntox 
+RUN cd /tuntox && make tuntox
 
 FROM alpine:latest
 
