@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# Needs: docker buildx (comes with Docker CE >=19.03)
+# Build & extract per-arch binaries locally — NO PUSH
+# Requires: docker buildx with qemu-user-static already installed (system-wide)
 
 SRCDIR="$(pwd)"
 GIT_HASH=$(git rev-parse --short HEAD)
@@ -21,21 +22,25 @@ PLATFORMS=(
   linux/386
 )
 
-# Create a new builder with qemu support if not exists
-docker buildx create --name multibuilder --use 2>/dev/null || docker buildx use multibuilder
+# Ensure builder exists
+docker buildx create --name localbuilder --use 2>/dev/null || docker buildx use localbuilder
 docker buildx inspect --bootstrap
 
+# Iterate architectures, build & extract binaries
 for PLATFORM in "${PLATFORMS[@]}"; do
     short=$(echo "$PLATFORM" | sed 's|linux/||; s|/|-|g')
-    echo "=== Building for $PLATFORM ($short) ==="
-    
-    # Build (not pushing, but you could add --push to publish a multi-arch image)
+    echo "=== Building & extracting binary for $PLATFORM ($short) ==="
+
     docker buildx build \
-        --platform $PLATFORM \
-        -t $DOCKER_ID:$short \
+        --platform "$PLATFORM" \
+        -t "$DOCKER_ID:$short" \
         --load \
         "$SRCDIR"
-    
-    # Extract the binary
-    docker run --rm $DOCKER_ID:$short cat /usr/bin/tuntox > "tuntox-$PRINTABLE_VERSION-$short"
+
+    docker run --rm "$DOCKER_ID:$short" cat /usr/bin/tuntox > "tuntox-$PRINTABLE_VERSION-$short"
+    chmod +x "tuntox-$PRINTABLE_VERSION-$short"
 done
+
+echo
+echo "✅ All binaries built locally:"
+ls -1 tuntox-"$PRINTABLE_VERSION"-*
