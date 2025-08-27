@@ -1,78 +1,63 @@
 #!/usr/bin/python3
-# pip3 install jinja2 requests
+# pip3 install requests
 
 import datetime
-import jinja2
 import json
 import requests
 import socket
+from string import Template
 
 json_url = 'https://nodes.tox.chat/json'
 
-tox_bootstrap_template = """
+# --- Templates ---
+
+main_template = Template("""\
 /*
  * Generated with generate_tox_bootstrap.py by GDR!
- * from {{ json_url }} on {{ now }}
+ * from $json_url on $now
  */
 struct bootstrap_node {
     char *address;
     uint16_t port;
     uint8_t key[32];
 } bootstrap_nodes[] = {
-{% for node in nodes %}
-    {
-        "{{ node.ip }}",
-        {{ node.port }},
-        {
-            {{ node.public_key|toxtoc }}
-        }
-    },
-{% endfor %}
+$bootstrap_nodes
 };
 
 struct bootstrap_node tcp_relays[] = {
-{% for node in relays %}
-    {
-        "{{ node.ip }}",
-        {{ node.port }},
-        {
-            {{ node.public_key|toxtoc }}
-        }
-    },
-{% endfor %}
+$tcp_relays
 };
-"""
+""")
+
+node_template = Template("""    {
+        "$ip",
+        $port,
+        {
+            $keybytes
+        }
+    }""")
+
+# --- Helpers ---
 
 def toxtoc(value):
     """
-    A Jinja2 filter to turn a ToxID into two lines of C bytes
+    Convert a 64-char hex string into two lines of C bytes.
     """
     def get_16_bytes(value):
-        """
-        Generate 1 line of C code - 16 bytes
-        @param value a hex string of length 32 (32 hex chars)
-        """
         if len(value) != 32:
-            raise ValueError('%r is not a 32-char string')
-
+            raise ValueError('%r is not a 32-char string' % value)
         rv = ""
-
         for i in range(16):
             rv += "0x%s" % value[2*i : 2*i+2]
             if i < 15:
                 rv += ", "
-
         return rv
 
-    rv = get_16_bytes(value[:32]) + \
-         ",\n" + (12*' ') + \
-         get_16_bytes(value[32:])
+    return get_16_bytes(value[:32]) + \
+           ",\n" + (12*' ') + \
+           get_16_bytes(value[32:])
 
-    return rv
-
-class Loader(jinja2.BaseLoader):
-    def get_source(self, environment, template):
-        return tox_bootstrap_template, 'tox_bootstrap_template', True
+# --- Main ---
 
 if __name__ == "__main__":
     r = requests.get(json_url)
@@ -106,7 +91,6 @@ if __name__ == "__main__":
                 socket.inet_pton(family, addr)
                 node['ip'] = addr
             except socket.error:
-                # IPv4 is not numeric, let's try resolving
                 try:
                     print("RESOLVING", addr)
                     node['ip'] = socket.gethostbyname(addr)
@@ -115,7 +99,7 @@ if __name__ == "__main__":
                     continue
 
             if 'status_udp' in elem and elem['status_udp']:
-                nodes.append(node)
+                nodes.append(dict(node))  # copy
 
             if 'tcp_ports' in elem and elem['tcp_ports'] and \
                'status_tcp' in elem and elem['status_tcp']:
@@ -125,12 +109,34 @@ if __name__ == "__main__":
                         relay['port'] = int(port)
                     except ValueError:
                         continue
-
                     tcp_relays.append(relay)
 
-    env = jinja2.Environment(loader=Loader())
-    env.filters['toxtoc'] = toxtoc
-    template = env.get_template('tox_bootstrap_template')
-    tox_bootstrap_h = template.render(nodes=nodes, now=datetime.datetime.now(), json_url=json_url, relays=tcp_relays)
-    open('tox_bootstrap.h', 'w').write(tox_bootstrap_h)
+    # Build loops using node_template
+    node_entries = []
+    for n in nodes:
+        node_entries.append(node_template.substitute(
+            ip=n['ip'],
+            port=n['port'],
+            keybytes=toxtoc(n['public_key'])
+        ))
+    relay_entries = []
+    for rnode in tcp_relays:
+        relay_entries.append(node_template.substitute(
+            ip=rnode['ip'],
+            port=rnode['port'],
+            keybytes=toxtoc(rnode['public_key'])
+        ))
 
+    # Join with commas
+    bootstrap_nodes_str = ",\n".join(node_entries)
+    tcp_relays_str = ",\n".join(relay_entries)
+
+    # Final render
+    tox_bootstrap_h = main_template.substitute(
+        json_url=json_url,
+        now=datetime.datetime.now(),
+        bootstrap_nodes=bootstrap_nodes_str,
+        tcp_relays=tcp_relays_str
+    )
+
+    open('tox_bootstrap.h', 'w').write(tox_bootstrap_h)
